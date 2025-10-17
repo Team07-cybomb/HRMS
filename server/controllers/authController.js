@@ -44,31 +44,47 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    console.log('Login attempt for email:', email);
+    
     // 1️⃣ Find user by email
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'User not found' });
+    if (!user) {
+      console.log('User not found in User collection');
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
 
     // 2️⃣ Check password
     const isMatch = await user.matchPassword(password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid password' });
+    if (!isMatch) {
+      console.log('Password does not match');
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    console.log('User found:', user.email, 'Role:', user.role);
 
     // 3️⃣ If role is employee, check status in Employee collection
     if (user.role === 'employee') {
+      console.log('Checking employee status for employeeId:', user.employeeId);
+      
       if (!user.employeeId) {
+        console.log('No employeeId linked with user');
         return res.status(400).json({ message: 'Employee ID not linked with user' });
       }
 
       const employee = await Employee.findOne({ employeeId: user.employeeId });
+      console.log('Employee record found:', employee);
+      
       if (!employee) {
+        console.log('Employee record not found for employeeId:', user.employeeId);
         return res.status(400).json({ message: 'Employee record not found' });
       }
 
       // ✅ Allow only if status is "active" or "onprobation"
+      console.log('Employee status:', employee.status);
       if (employee.status !== 'active' && employee.status !== 'on-probation') {
         return res.status(403).json({
           message: `Your account is currently '${employee.status}'. Please contact admin.`,

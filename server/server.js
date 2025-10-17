@@ -14,6 +14,7 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/authRoutes.js'));
 app.use('/api/employees', require('./routes/employeeRoutes.js'));
 app.use('/api/onboarding', require('./routes/onboardingRoutes.js'));
+app.use('/api/teams', require('./routes/teamRoutes.js'));
 
 
 const PORT = process.env.PORT || 5000;
