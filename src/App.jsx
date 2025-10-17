@@ -26,7 +26,8 @@ import SearchResultsPage from '@/pages/SearchResultsPage';
 import CompanyPolicyPage from '@/pages/CompanyPolicyPage';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-
+import { AdminAttendanceProvider } from '@/contexts/AdminAttendanceContext';
+import FeedsSection from '@/pages/FeedsSection';
 const AppRoutes = () => {
   const { user } = useAuth();
   const isEmployee = user?.role === 'employee';
@@ -153,6 +154,13 @@ const AppRoutes = () => {
           </Layout>
         </ProtectedRoute>
       } />
+      <Route path="/feeds" element={
+        <ProtectedRoute>
+          <Layout>
+            <FeedsSection />
+          </Layout>
+        </ProtectedRoute>
+      } />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -168,6 +176,7 @@ function App() {
       
       <ThemeProvider defaultTheme="light" storageKey="hrms-ui-theme">
         <AuthProvider>
+          <AdminAttendanceProvider>
           <TenantProvider>
             <AppProvider>
               <Router>
@@ -178,6 +187,7 @@ function App() {
               </Router>
             </AppProvider>
           </TenantProvider>
+           </AdminAttendanceProvider>
         </AuthProvider>
       </ThemeProvider>
     </>

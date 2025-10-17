@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // Login function
+  // In AuthContext.jsx - Update the login function
   const login = async (email, password) => {
     try {
       const res = await fetch("http://localhost:5000/api/auth/login", {
@@ -36,14 +36,15 @@ export const AuthProvider = ({ children }) => {
 
       if (!res.ok) throw new Error(data.message || "Login failed");
 
-      // Enhanced user data with employee info
+      // Enhanced user data with required properties
       const userData = {
+        id: data._id || data.id,
         _id: data._id,
         email: data.email,
         role: data.role,
-        name: data.name || email.split("@")[0],
-        employeeId: data.employeeId,
-        permissions: data.permissions || getDefaultPermissions(data.role),
+        name: data.name || email.split("@")[0], // Fallback name
+        teamId: data.teamId || 1, // Default team ID
+        teamIds: data.teamIds || [data.teamId || 1], // Array of team IDs
       };
 
       const token = data.token;
@@ -70,29 +71,6 @@ export const AuthProvider = ({ children }) => {
       });
       return { success: false, error: error.message };
     }
-  };
-
-  // Get default permissions based on role
-  const getDefaultPermissions = (role) => {
-    const permissions = {
-      employer: [
-        "view:all",
-        "create:all",
-        "edit:all",
-        "delete:all",
-        "approve:leave",
-        "reject:leave",
-      ],
-      hr: [
-        "view:employees",
-        "create:employees",
-        "edit:employees",
-        "approve:leave",
-        "reject:leave",
-      ],
-      employee: ["view:self", "edit:self", "create:leave", "cancel:own_leave"],
-    };
-    return permissions[role] || [];
   };
 
   // Logout function

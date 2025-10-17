@@ -6,8 +6,14 @@ const employeeSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   department: String,
   designation: String,
+  role: String,
+  employmentType: { type: String, default: 'Permanent' },
   status: { type: String, default: 'active' },
-  location: String
+  sourceOfHire: { type: String, default: 'Direct' },
+  location: String,
+  dateOfJoining: Date,
+  totalExperience: String,
+  password: { type: String } // Store plain text reference only
 });
 
 module.exports = mongoose.model('Employee', employeeSchema);
