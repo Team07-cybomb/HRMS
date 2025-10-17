@@ -14,6 +14,11 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/authRoutes.js'));
 app.use('/api/employees', require('./routes/employeeRoutes.js'));
 app.use('/api/onboarding', require('./routes/onboardingRoutes.js'));
+app.use('/api/offboarding', require('./routes/offboardingRoutes.js'));
+app.use('/api/attendance', require('./routes/attendanceRoutes.js'));
+app.use('/api/admin', require('./routes/adminAttendanceRoutes.js'));
+app.use('/api/teams', require('./routes/teamRoutes.js'));
+
 app.use('/api/announcements', require('./routes/announcementRoutes.js'));
 
 const PORT = process.env.PORT || 5000;

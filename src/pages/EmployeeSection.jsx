@@ -47,7 +47,13 @@ import {
   User,
   Building,
   Briefcase,
-  Clock
+  Clock,
+  Key,
+  Copy,
+  Check,
+  Target,
+  UserCheck,
+  Award
 } from 'lucide-react';
 
 // ================== Employee Form ==================
@@ -59,14 +65,61 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
       email: '', 
       department: '', 
       designation: '', 
+      role: '',
+      employmentType: 'Permanent',
       status: 'active', 
-      location: '' 
+      sourceOfHire: 'Direct',
+      location: '',
+      dateOfJoining: '',
+      totalExperience: '',
+      password: '' 
     }
   );
+  const [generatePassword, setGeneratePassword] = useState(!employee);
+  const [passwordCopied, setPasswordCopied] = useState(false);
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  useEffect(() => {
+    if (generatePassword && !employee) {
+      setFormData(prev => ({
+        ...prev,
+        password: generateRandomPassword()
+      }));
+    }
+  }, [generatePassword, employee]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePasswordToggle = (e) => {
+    setGeneratePassword(e.target.checked);
+    if (e.target.checked) {
+      setFormData(prev => ({
+        ...prev,
+        password: generateRandomPassword()
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        password: ''
+      }));
+    }
+  };
+
+  const copyPassword = () => {
+    navigator.clipboard.writeText(formData.password);
+    setPasswordCopied(true);
+    setTimeout(() => setPasswordCopied(false), 2000);
   };
 
   const handleSubmit = async (e) => {
@@ -89,7 +142,6 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               required 
               disabled={!!employee} 
             />
-           
           </div>
           
           <div>
@@ -114,9 +166,7 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               required 
             />
           </div>
-        </div>
 
-        <div className="space-y-4">
           <div>
             <Label htmlFor="department">Department</Label>
             <Input 
@@ -127,7 +177,7 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               required 
             />
           </div>
-          
+
           <div>
             <Label htmlFor="designation">Designation</Label>
             <Input 
@@ -138,6 +188,52 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               required 
             />
           </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="role">Role</Label>
+            <Input 
+              id="role" 
+              name="role" 
+              value={formData.role} 
+              onChange={handleChange} 
+              placeholder="e.g., Team Member, Team Lead, Manager"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="employmentType">Employment Type</Label>
+            <select 
+              id="employmentType" 
+              name="employmentType" 
+              value={formData.employmentType} 
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="Permanent">Permanent</option>
+              <option value="Contract">Contract</option>
+              <option value="Intern">Intern</option>
+              <option value="Temporary">Temporary</option>
+            </select>
+          </div>
+
+          <div>
+            <Label htmlFor="sourceOfHire">Source of Hire</Label>
+            <select 
+              id="sourceOfHire" 
+              name="sourceOfHire" 
+              value={formData.sourceOfHire} 
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="Direct">Direct</option>
+              <option value="Referral">Referral</option>
+              <option value="Agency">Agency</option>
+              <option value="Campus">Campus</option>
+              <option value="Job Portal">Job Portal</option>
+            </select>
+          </div>
           
           <div>
             <Label htmlFor="location">Location</Label>
@@ -146,28 +242,122 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               name="location" 
               value={formData.location} 
               onChange={handleChange} 
-              required 
+              placeholder="e.g., Cybomb Technologies LLP - Prime Plaza"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="dateOfJoining">Date of Joining</Label>
+            <Input 
+              id="dateOfJoining" 
+              name="dateOfJoining" 
+              type="date" 
+              value={formData.dateOfJoining} 
+              onChange={handleChange} 
             />
           </div>
         </div>
       </div>
 
-      {/* Status Field - Full Width */}
-      <div>
-        <Label htmlFor="status">Status</Label>
-        <select 
-          id="status" 
-          name="status" 
-          value={formData.status} 
-          onChange={handleChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          required
-        >
-          <option value="active">Active</option>
-          <option value="on-probation">On Probation</option>
-          <option value="on-leave">On Leave</option>
-          <option value="terminated">Terminated</option>
-        </select>
+      {/* Second Row - Additional Fields */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label htmlFor="totalExperience">Total Experience</Label>
+          <Input 
+            id="totalExperience" 
+            name="totalExperience" 
+            value={formData.totalExperience} 
+            onChange={handleChange} 
+            placeholder="e.g., 2 month(s), 1 year(s)"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="status">Employee Status</Label>
+          <select 
+            id="status" 
+            name="status" 
+            value={formData.status} 
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+          >
+            <option value="active">Active</option>
+            <option value="on-probation">On Probation</option>
+            <option value="on-leave">On Leave</option>
+            <option value="terminated">Terminated</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Password Section */}
+      <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="generatePassword" className="text-blue-900 font-medium">
+            <Key className="w-4 h-4 inline mr-2" />
+            Account Password
+          </Label>
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="generatePassword"
+              checked={generatePassword}
+              onChange={handlePasswordToggle}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              disabled={!!employee}
+            />
+            <Label htmlFor="generatePassword" className="text-sm text-blue-800">
+              Generate automatic password
+            </Label>
+          </div>
+        </div>
+
+        {generatePassword && formData.password && (
+          <div className="bg-white p-3 rounded border">
+            <Label className="text-sm text-gray-600 mb-2 block">
+              Employee Login Password:
+            </Label>
+            <div className="flex items-center space-x-2">
+              <Input
+                value={formData.password}
+                readOnly
+                className="font-mono bg-gray-50"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={copyPassword}
+                className="whitespace-nowrap"
+              >
+                {passwordCopied ? (
+                  <Check className="w-4 h-4 text-green-600" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+                {passwordCopied ? 'Copied!' : 'Copy'}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              📋 Copy this password and share it securely with the employee. They can use it to login with their email.
+            </p>
+          </div>
+        )}
+
+        {!generatePassword && (
+          <div>
+            <Label htmlFor="password">Set Custom Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="text"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Enter custom password"
+              required={!generatePassword}
+            />
+          </div>
+        )}
       </div>
 
       {/* Buttons */}
@@ -203,6 +393,12 @@ const EmployeeViewDialog = ({ employee, isOpen, onClose }) => {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -224,7 +420,7 @@ const EmployeeViewDialog = ({ employee, isOpen, onClose }) => {
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <span className="text-white font-bold text-2xl">
-                    {employee.name.split(' ').map(n => n[0]).join('')}
+                    {employee.name?.split(' ').map(n => n[0]).join('')}
                   </span>
                 </div>
                 <div className="flex-1">
@@ -233,7 +429,7 @@ const EmployeeViewDialog = ({ employee, isOpen, onClose }) => {
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant="outline" className={`flex items-center gap-1 ${getStatusColor(employee.status)}`}>
                       {getStatusIcon(employee.status)}
-                      {employee.status.replace('-', ' ')}
+                      {employee.status?.replace('-', ' ')}
                     </Badge>
                     <Badge variant="secondary" className="bg-blue-50 text-blue-700">
                       {employee.employeeId}
@@ -306,31 +502,33 @@ const EmployeeViewDialog = ({ employee, isOpen, onClose }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                  <MapPin className="w-4 h-4 text-gray-400" />
+                  <Target className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-600">Work Location</p>
-                    <p className="font-medium text-gray-900">{employee.location}</p>
+                    <p className="text-sm text-gray-600">Role</p>
+                    <p className="font-medium text-gray-900">{employee.role || 'Not specified'}</p>
                   </div>
                 </div>
               </div>
             </Card>
 
-            {/* Status Information */}
+            {/* Employment Information */}
             <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-0 shadow-sm">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
-                <Clock className="w-5 h-5 text-green-600" />
-                Employment Status
+                <UserCheck className="w-5 h-5 text-green-600" />
+                Employment Details
               </h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
-                  <span className="text-sm text-gray-600">Current Status</span>
-                  <Badge className={`${getStatusColor(employee.status)}`}>
-                    {employee.status.replace('-', ' ')}
-                  </Badge>
+                  <span className="text-sm text-gray-600">Employment Type</span>
+                  <span className="font-medium text-gray-900">{employee.employmentType || 'Not specified'}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
-                  <span className="text-sm text-gray-600">Employee ID</span>
-                  <span className="font-medium text-gray-900">{employee.employeeId}</span>
+                  <span className="text-sm text-gray-600">Source of Hire</span>
+                  <span className="font-medium text-gray-900">{employee.sourceOfHire || 'Not specified'}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
+                  <span className="text-sm text-gray-600">Date of Joining</span>
+                  <span className="font-medium text-gray-900">{formatDate(employee.dateOfJoining)}</span>
                 </div>
               </div>
             </Card>
@@ -338,17 +536,23 @@ const EmployeeViewDialog = ({ employee, isOpen, onClose }) => {
             {/* Additional Information */}
             <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-0 shadow-sm">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
-                <Calendar className="w-5 h-5 text-purple-600" />
-                Additional Info
+                <Award className="w-5 h-5 text-purple-600" />
+                Experience & Location
               </h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
-                  <span className="text-sm text-gray-600">Join Date</span>
-                  <span className="font-medium text-gray-900">Not specified</span>
+                  <span className="text-sm text-gray-600">Total Experience</span>
+                  <span className="font-medium text-gray-900">{employee.totalExperience || 'Not specified'}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
-                  <span className="text-sm text-gray-600">Reports To</span>
-                  <span className="font-medium text-gray-900">Not assigned</span>
+                  <span className="text-sm text-gray-600">Work Location</span>
+                  <span className="font-medium text-gray-900">{employee.location}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
+                  <span className="text-sm text-gray-600">Employee Status</span>
+                  <Badge className={`${getStatusColor(employee.status)}`}>
+                    {employee.status?.replace('-', ' ')}
+                  </Badge>
                 </div>
               </div>
             </Card>
@@ -374,7 +578,7 @@ const EmployeeViewDialog = ({ employee, isOpen, onClose }) => {
 // ================== Employee Section ==================
 const EmployeeSection = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({ status: 'all', department: 'all', location: 'all' });
+  const [filters, setFilters] = useState({ status: 'all', department: 'all', location: 'all', employmentType: 'all' });
   const [isModalOpen, setModalOpen] = useState(false);
   const [isViewModalOpen, setViewModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -386,9 +590,11 @@ const EmployeeSection = () => {
     try {
       const res = await fetch('http://localhost:5000/api/employees');
       const data = await res.json();
-      setEmployees(data);
+      setEmployees(data || []); // Ensure we always have an array
     } catch (err) {
+      console.error('Failed to fetch employees:', err);
       toast({ title: 'Error', description: 'Failed to fetch employees' });
+      setEmployees([]); // Set empty array on error
     }
   };
 
@@ -396,8 +602,11 @@ const EmployeeSection = () => {
 
   // ================== Suggested ID ==================
   const suggestedId = useMemo(() => {
+    if (!employees.length) return 'EMP001';
+    
     const lastEmployee = employees[employees.length - 1];
-    if (!lastEmployee || !lastEmployee.employeeId.startsWith('EMP')) return 'EMP001';
+    if (!lastEmployee || !lastEmployee.employeeId?.startsWith('EMP')) return 'EMP001';
+    
     const lastIdNum = parseInt(lastEmployee.employeeId.replace('EMP', ''), 10);
     return `EMP${String(lastIdNum + 1).padStart(3, '0')}`;
   }, [employees]);
@@ -421,8 +630,13 @@ const EmployeeSection = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(employeeData)
         });
+        const result = await res.json();
         if (!res.ok) throw new Error('Add failed');
-        toast({ title: 'Employee Added', description: `${employeeData.name} added successfully.` });
+        
+        toast({ 
+          title: 'Employee Added', 
+          description: `${employeeData.name} added successfully. Login email: ${employeeData.email}`,
+        });
       }
       setModalOpen(false);
       setEditingEmployee(null);
@@ -465,22 +679,39 @@ const EmployeeSection = () => {
     setFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  // FIXED: Safe filtering with optional chaining and null checks
   const filteredEmployees = employees.filter(emp => {
+    if (!emp) return false; // Skip if employee is undefined
+    
     const searchLower = searchTerm.toLowerCase();
+    
+    // Safe property access with optional chaining and fallbacks
+    const name = emp.name || '';
+    const email = emp.email || '';
+    const employeeId = emp.employeeId || '';
+    const department = emp.department || '';
+    const location = emp.location || '';
+    const status = emp.status || '';
+    const employmentType = emp.employmentType || '';
+
     const matchesSearch =
-      emp.name.toLowerCase().includes(searchLower) ||
-      emp.email.toLowerCase().includes(searchLower) ||
-      emp.employeeId.toLowerCase().includes(searchLower);
-    const matchesStatus = filters.status === 'all' || emp.status === filters.status;
-    const matchesDept = filters.department === 'all' || emp.department === filters.department;
-    const matchesLocation = filters.location === 'all' || emp.location === filters.location;
-    return matchesSearch && matchesStatus && matchesDept && matchesLocation;
+      name.toLowerCase().includes(searchLower) ||
+      email.toLowerCase().includes(searchLower) ||
+      employeeId.toLowerCase().includes(searchLower);
+    
+    const matchesStatus = filters.status === 'all' || status === filters.status;
+    const matchesDept = filters.department === 'all' || department === filters.department;
+    const matchesLocation = filters.location === 'all' || location === filters.location;
+    const matchesEmploymentType = filters.employmentType === 'all' || employmentType === filters.employmentType;
+    
+    return matchesSearch && matchesStatus && matchesDept && matchesLocation && matchesEmploymentType;
   });
 
   const filterOptions = {
     status: ['all', 'active', 'on-probation', 'on-leave', 'terminated'],
-    department: ['all', ...new Set(employees.map(e => e.department))],
-    location: ['all', ...new Set(employees.map(e => e.location))],
+    department: ['all', ...new Set(employees.filter(e => e?.department).map(e => e.department))],
+    location: ['all', ...new Set(employees.filter(e => e?.location).map(e => e.location))],
+    employmentType: ['all', 'Permanent', 'Contract', 'Intern', 'Temporary'],
   };
 
   return (
@@ -489,7 +720,7 @@ const EmployeeSection = () => {
 
       {/* Edit/Add Dialog */}
       <Dialog open={isModalOpen} onOpenChange={(open) => { if (!open) setEditingEmployee(null); setModalOpen(open); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
             <DialogDescription>{editingEmployee ? 'Update employee details' : 'Fill in new employee information'}</DialogDescription>
@@ -530,7 +761,7 @@ const EmployeeSection = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Search employees..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <select name="status" value={filters.status} onChange={handleFilterChange} className="px-3 py-2 border rounded-lg bg-background capitalize">
               {filterOptions.status.map(option => <option key={option} value={option}>{option.replace('-', ' ')}</option>)}
             </select>
@@ -539,6 +770,9 @@ const EmployeeSection = () => {
             </select>
             <select name="location" value={filters.location} onChange={handleFilterChange} className="px-3 py-2 border rounded-lg bg-background">
               {filterOptions.location.map(option => <option key={option} value={option}>{option}</option>)}
+            </select>
+            <select name="employmentType" value={filters.employmentType} onChange={handleFilterChange} className="px-3 py-2 border rounded-lg bg-background">
+              {filterOptions.employmentType.map(option => <option key={option} value={option}>{option}</option>)}
             </select>
           </div>
         </motion.div>
@@ -551,12 +785,23 @@ const EmployeeSection = () => {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white font-medium text-lg">{employee.name.split(' ').map(n => n[0]).join('')}</span>
+                      <span className="text-white font-medium text-lg">
+                        {employee.name?.split(' ').map(n => n?.[0]).join('')}
+                      </span>
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">{employee.name}</h3>
                       <p className="text-sm text-muted-foreground">{employee.employeeId}</p>
-                      <Badge className={`mt-1 ${getStatusColor(employee.status)} capitalize`}>{employee.status.replace('-', ' ')}</Badge>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <Badge className={`${getStatusColor(employee.status)} capitalize`}>
+                          {employee.status?.replace('-', ' ')}
+                        </Badge>
+                        {employee.employmentType && (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                            {employee.employmentType}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <AlertDialog>
@@ -603,9 +848,33 @@ const EmployeeSection = () => {
                       <p className="text-sm font-medium text-foreground">{employee.designation}</p>
                     </div>
                   </div>
+                  {(employee.role || employee.dateOfJoining) && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {employee.role && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Role</p>
+                          <p className="text-sm font-medium text-foreground">{employee.role}</p>
+                        </div>
+                      )}
+                      {employee.dateOfJoining && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Join Date</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {new Date(employee.dateOfJoining).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center space-x-4 pt-2 border-t border-border">
-                    <div className="flex items-center space-x-1 text-muted-foreground"><Mail className="w-3 h-3" /><span className="text-xs">{employee.email}</span></div>
-                    <div className="flex items-center space-x-1 text-muted-foreground"><MapPin className="w-3 h-3" /><span className="text-xs">{employee.location}</span></div>
+                    <div className="flex items-center space-x-1 text-muted-foreground">
+                      <Mail className="w-3 h-3" />
+                      <span className="text-xs">{employee.email}</span>
+                    </div>
+                    <div className="flex items-center space-x-1 text-muted-foreground">
+                      <MapPin className="w-3 h-3" />
+                      <span className="text-xs">{employee.location}</span>
+                    </div>
                   </div>
                 </div>
               </Card>
