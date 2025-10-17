@@ -19,6 +19,7 @@ app.use('/api/attendance', require('./routes/attendanceRoutes.js'));
 app.use('/api/admin', require('./routes/adminAttendanceRoutes.js'));
 app.use('/api/teams', require('./routes/teamRoutes.js'));
 
+app.use('/api/announcements', require('./routes/announcementRoutes.js'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
