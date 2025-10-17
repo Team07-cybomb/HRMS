@@ -13,613 +13,45 @@ export const useAppContext = () => {
   return context;
 };
 
-const initialEmployees = [
-  {
-    id: "EMP001",
-    name: "Sarah Johnson",
-    email: "employee@company.com",
-    phone: "+1 (555) 123-4567",
-    department: "Technology",
-    designation: "Senior Software Engineer",
-    manager: "Mike Chen",
-    reportingManager: "Mike Chen",
-    doj: "2022-03-15",
-    status: "active",
-    location: "New York",
-    avatar: null,
-    teamId: 1,
-    tenantId: "TENANT01",
-    dob: "1990-05-20",
-    country: "USA",
-    address: "123 Main St, New York, NY",
-    emergencyContact: { name: "John Johnson", phone: "+1 (555) 987-6543" },
-    salaryStructure: { base: 90000, bonus: 15000, hra: 20000, total: 125000 },
-    documents: [
-      {
-        id: uuidv4(),
-        name: "Offer Letter.pdf",
-        type: "pdf",
-        size: "256KB",
-        uploaded: "2022-03-01",
-      },
-      {
-        id: uuidv4(),
-        name: "Passport.pdf",
-        type: "pdf",
-        size: "512KB",
-        uploaded: "2022-03-10",
-      },
-    ],
-    leaveBalances: { sick: 8, casual: 12, earned: 5 },
-    identityInformation: [
-      { id: uuidv4(), type: "Passport", number: "US12345678", country: "USA" },
-    ],
-    workExperience: [
-      {
-        id: uuidv4(),
-        company: "Tech Solutions Inc.",
-        title: "Software Engineer",
-        from: "2020-01-01",
-        to: "2022-03-14",
-      },
-    ],
-    educationDetails: [
-      {
-        id: uuidv4(),
-        institution: "State University",
-        degree: "B.S. in Computer Science",
-        from: "2016-09-01",
-        to: "2020-05-15",
-      },
-    ],
-    complianceDetails: [
-      { id: uuidv4(), type: "UAN", number: "123456789012" },
-      { id: uuidv4(), type: "PAN", number: "ABCDE1234F" },
-      { id: uuidv4(), type: "Aadhar", number: "1234-5678-9012" },
-    ],
-    bankDetails: [
-      {
-        id: uuidv4(),
-        accountName: "Sarah Johnson",
-        accountNumber: "1234567890",
-        ifscCode: "HDFC0001234",
-        bankName: "HDFC Bank",
-        branch: "New York Branch",
-      },
-    ],
-  },
-  {
-    id: "EMP002",
-    name: "Mike Chen",
-    email: "mike.chen@company.com",
-    phone: "+1 (555) 234-5678",
-    department: "Technology",
-    designation: "Engineering Manager",
-    manager: "David Wilson",
-    reportingManager: "David Wilson",
-    doj: "2021-01-10",
-    status: "active",
-    location: "San Francisco",
-    avatar: null,
-    teamId: 1,
-    tenantId: "TENANT01",
-    dob: "1985-11-12",
-    country: "USA",
-    address: "456 Market St, San Francisco, CA",
-    emergencyContact: { name: "Jane Chen", phone: "+1 (555) 876-5432" },
-    salaryStructure: { base: 120000, bonus: 25000, hra: 20000, total: 165000 },
-    documents: [],
-    leaveBalances: { sick: 10, casual: 12, earned: 15 },
-    identityInformation: [
-      { id: uuidv4(), type: "Passport", number: "US87654321", country: "USA" },
-    ],
-    workExperience: [
-      {
-        id: uuidv4(),
-        company: "Innovate Corp",
-        title: "Senior Developer",
-        from: "2018-06-01",
-        to: "2020-12-31",
-      },
-    ],
-    educationDetails: [
-      {
-        id: uuidv4(),
-        institution: "Tech Institute",
-        degree: "M.S. in Software Engineering",
-        from: "2016-09-01",
-        to: "2018-05-15",
-      },
-    ],
-    complianceDetails: [
-      { id: uuidv4(), type: "UAN", number: "123456789013" },
-      { id: uuidv4(), type: "PAN", number: "BCDEF2345G" },
-    ],
-    bankDetails: [
-      {
-        id: uuidv4(),
-        accountName: "Mike Chen",
-        accountNumber: "2345678901",
-        ifscCode: "ICICI0002345",
-        bankName: "ICICI Bank",
-        branch: "San Francisco Branch",
-      },
-    ],
-  },
-  {
-    id: "EMP003",
-    name: "Emily Davis",
-    email: "emily.davis@company.com",
-    phone: "+1 (555) 345-6789",
-    department: "Marketing",
-    designation: "Marketing Manager",
-    manager: "Lisa Anderson",
-    reportingManager: "Lisa Anderson",
-    doj: "2022-07-20",
-    status: "active",
-    location: "Remote",
-    avatar: null,
-    teamId: 2,
-    tenantId: "TENANT01",
-    dob: "1992-02-28",
-    country: "Canada",
-    address: "789 Queen St, Toronto, ON",
-    emergencyContact: { name: "Robert Davis", phone: "+1 (555) 765-4321" },
-    salaryStructure: { base: 75000, bonus: 10000, hra: 10000, total: 95000 },
-    documents: [],
-    leaveBalances: { sick: 5, casual: 10, earned: 8 },
-    identityInformation: [
-      {
-        id: uuidv4(),
-        type: "Passport",
-        number: "CA1234567",
-        country: "Canada",
-      },
-    ],
-    workExperience: [
-      {
-        id: uuidv4(),
-        company: "Creative Ads",
-        title: "Marketing Specialist",
-        from: "2019-03-01",
-        to: "2022-07-19",
-      },
-    ],
-    educationDetails: [
-      {
-        id: uuidv4(),
-        institution: "University of Toronto",
-        degree: "B.A. in Marketing",
-        from: "2015-09-01",
-        to: "2019-05-15",
-      },
-    ],
-    complianceDetails: [{ id: uuidv4(), type: "SIN", number: "123-456-789" }],
-    bankDetails: [
-      {
-        id: uuidv4(),
-        accountName: "Emily Davis",
-        accountNumber: "3456789012",
-        ifscCode: "RBC00003456",
-        bankName: "Royal Bank of Canada",
-        branch: "Toronto Branch",
-      },
-    ],
-  },
-];
-
-const initialTeams = [
-  {
-    id: 1,
-    name: "Engineering",
-    lead: "Mike Chen",
-    members: ["EMP001", "EMP002"],
-    department: "Technology",
-    location: "New York",
-    budget: "$2.4M",
-    status: "active",
-    tenantId: "TENANT01",
-  },
-  {
-    id: 2,
-    name: "Product Design",
-    lead: "Mike Chen",
-    members: [],
-    department: "Design",
-    location: "San Francisco",
-    budget: "$800K",
-    status: "active",
-    tenantId: "TENANT01",
-  },
-  {
-    id: 3,
-    name: "Marketing",
-    lead: "Emily Davis",
-    members: ["EMP003"],
-    department: "Marketing",
-    location: "Remote",
-    budget: "$1.2M",
-    status: "active",
-    tenantId: "TENANT01",
-  },
-];
-
-const initialDepartments = [
-  {
-    id: 1,
-    name: "Technology",
-    headcount: 45,
-    target: 50,
-    budget: "$3.2M",
-    head: "Sarah Johnson",
-    teams: ["Engineering", "DevOps", "QA"],
-    status: "active",
-  },
-  {
-    id: 2,
-    name: "Sales & Marketing",
-    headcount: 32,
-    target: 35,
-    budget: "$2.1M",
-    head: "Mike Chen",
-    teams: ["Sales", "Marketing", "Business Development"],
-    status: "active",
-  },
-];
-
-const initialDesignations = [
-  {
-    id: 1,
-    title: "Software Engineer",
-    level: "L3",
-    department: "Technology",
-    minSalary: "$80K",
-    maxSalary: "$120K",
-    count: 15,
-  },
-  {
-    id: 2,
-    title: "Senior Software Engineer",
-    level: "L4",
-    department: "Technology",
-    minSalary: "$120K",
-    maxSalary: "$160K",
-    count: 8,
-  },
-];
-
-const initialLocations = [
-  {
-    id: 1,
-    name: "New York HQ",
-    address: "123 Business Ave, New York, NY 10001",
-    employees: 85,
-    shifts: ["Day Shift", "Night Shift"],
-    timezone: "EST",
-  },
-  {
-    id: 2,
-    name: "San Francisco Office",
-    address: "456 Tech Street, San Francisco, CA 94105",
-    employees: 42,
-    shifts: ["Day Shift", "Flexible"],
-    timezone: "PST",
-  },
-];
-
-const initialMessages = [
-  {
-    id: 1,
-    title: "Q4 All-Hands Meeting",
-    content:
-      "Join us for our quarterly all-hands meeting to review achievements and set goals for 2025.",
-    author: "CEO Office",
-    date: "2025-09-20",
-    priority: "high",
-    audience: "All Employees",
-  },
-  {
-    id: 2,
-    title: "New WFH Policy Update",
-    content:
-      "The work from home policy has been updated. Please review the new guidelines in the policy section.",
-    author: "HR Department",
-    date: "2025-09-18",
-    priority: "medium",
-    audience: "All Employees",
-  },
-];
-
-const initialOnboarding = [
-  {
-    id: "ON001",
-    name: "Alex Rodriguez",
-    email: "alex.rodriguez@company.com",
-    position: "Software Engineer",
-    department: "Technology",
-    startDate: "2025-10-15",
-    progress: 75,
-    status: "in-progress",
-    currentStep: "Background Check",
-    completedSteps: 6,
-    totalSteps: 8,
-    assignedTo: "Sarah Johnson",
-  },
-  {
-    id: "ON002",
-    name: "Maria Garcia",
-    email: "maria.garcia@company.com",
-    position: "Marketing Specialist",
-    department: "Marketing",
-    startDate: "2025-10-20",
-    progress: 45,
-    status: "in-progress",
-    currentStep: "Document Collection",
-    completedSteps: 3,
-    totalSteps: 8,
-    assignedTo: "Emily Davis",
-  },
-];
-
-const initialOffboarding = [
-  {
-    id: "OFF001",
-    name: "Michael Brown",
-    email: "michael.brown@company.com",
-    position: "Senior Developer",
-    department: "Technology",
-    lastWorkingDay: "2025-10-31",
-    reason: "resignation",
-    progress: 60,
-    status: "in-progress",
-    currentStep: "Asset Recovery",
-    completedSteps: 4,
-    totalSteps: 7,
-    assignedTo: "Sarah Johnson",
-  },
-  {
-    id: "OFF002",
-    name: "Jennifer Davis",
-    email: "jennifer.davis@company.com",
-    position: "Marketing Manager",
-    department: "Marketing",
-    lastWorkingDay: "2025-11-15",
-    reason: "termination",
-    progress: 85,
-    status: "pending-final",
-    currentStep: "F&F Calculation",
-    completedSteps: 6,
-    totalSteps: 7,
-    assignedTo: "Emily Davis",
-  },
-];
-
-const initialRoles = [
-  {
-    id: "role_admin",
-    name: "Admin",
-    description: "Full access to all system features.",
-    permissions: { employees: "crud", payroll: "crud", settings: "crud" },
-  },
-  {
-    id: "role_hr",
-    name: "HR Manager",
-    description: "Manages employees, onboarding, and leave.",
-    permissions: { employees: "crud", payroll: "read", settings: "read" },
-  },
-  {
-    id: "role_employee",
-    name: "Employee",
-    description: "Access to self-service features.",
-    permissions: {
-      employees: "read-self",
-      payroll: "read-self",
-      settings: "none",
-    },
-  },
-];
-
-const initialShifts = [
-  {
-    id: "shift_day",
-    name: "Day Shift",
-    startTime: "09:00",
-    endTime: "18:00",
-    days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-  },
-  {
-    id: "shift_night",
-    name: "Night Shift",
-    startTime: "21:00",
-    endTime: "06:00",
-    days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-  },
-];
-
-const initialCompanySettings = {
-  name: "HRMS Pro Company",
-  website: "https://hrmspro.com",
-  logo: null,
-};
-
-const initialLeaveRequests = [
-  {
-    id: "LR001",
-    employee: "Sarah Johnson",
-    employeeId: "EMP001",
-    type: "Annual Leave",
-    startDate: "2025-10-15",
-    endDate: "2025-10-19",
-    days: 5,
-    status: "approved",
-    reason: "Family vacation",
-    appliedDate: "2025-10-05",
-    approver: "Mike Chen",
-    approvedDate: "2025-10-06",
-    approvedBy: "Mike Chen",
-  },
-  {
-    id: "LR002",
-    employee: "Mike Chen",
-    employeeId: "EMP002",
-    type: "Sick Leave",
-    startDate: "2025-10-10",
-    endDate: "2025-10-12",
-    days: 3,
-    status: "approved",
-    reason: "Medical treatment",
-    appliedDate: "2025-10-09",
-    approver: "David Wilson",
-    approvedDate: "2025-10-09",
-    approvedBy: "David Wilson",
-  },
-  {
-    id: "LR003",
-    employee: "Emily Davis",
-    employeeId: "EMP003",
-    type: "Personal Leave",
-    startDate: "2025-10-20",
-    endDate: "2025-10-20",
-    days: 1,
-    status: "rejected",
-    reason: "Personal work",
-    appliedDate: "2025-10-18",
-    approver: "Lisa Anderson",
-    rejectedDate: "2025-10-19",
-    rejectedBy: "Lisa Anderson",
-  },
-  {
-    id: "LR004",
-    employee: "Sarah Johnson",
-    employeeId: "EMP001",
-    type: "Sick Leave",
-    startDate: "2025-11-01",
-    endDate: "2025-11-01",
-    days: 1,
-    status: "pending",
-    reason: "Feeling unwell",
-    appliedDate: "2025-10-31",
-    approver: "Mike Chen",
-  },
-];
-
-const initialNotifications = [
-  {
-    id: 1,
-    title: "New leave request",
-    description: "John Doe requested 3 days off.",
-    read: true,
-    date: "2025-09-24T10:00:00Z",
-  },
-  {
-    id: 2,
-    title: "Payroll processed",
-    description: "September payroll has been successfully processed.",
-    read: true,
-    date: "2025-09-23T15:30:00Z",
-  },
-  {
-    id: 3,
-    title: "Onboarding complete",
-    description: "Jane Smith has completed onboarding.",
-    read: false,
-    date: "2025-09-25T09:00:00Z",
-  },
-];
-
-const initialPolicies = [
-  {
-    id: uuidv4(),
-    title: "Work From Home Policy",
-    category: "General",
-    content:
-      "Employees are allowed to work from home up to 2 days per week with manager approval.",
-  },
-  {
-    id: uuidv4(),
-    title: "Leave Policy",
-    category: "HR",
-    content: "Annual leave must be requested at least 2 weeks in advance.",
-  },
-];
-
-const initialCompanyHolidays = [
-  { date: "2025-10-31", name: "Halloween" },
-  { date: "2025-11-27", name: "Thanksgiving Day" },
-  { date: "2025-12-25", name: "Christmas Day" },
-];
-
-const initialHrRequests = [
-  {
-    id: uuidv4(),
-    employeeId: "EMP001",
-    type: "Designation Change",
-    details: "Requesting promotion to Lead Software Engineer.",
-    status: "pending",
-    requestedDate: "2025-09-20",
-  },
-];
-
 const API_BASE_URL = "http://localhost:5000/api";
 
 export const AppProvider = ({ children }) => {
   const { user } = useAuth();
   const [auditLogs, setAuditLogs] = useLocalStorage("hrms_audit_logs", []);
-  const [employees, setEmployees] = useLocalStorage(
-    "hrms_employees",
-    initialEmployees
-  );
-  const [teams, setTeams] = useLocalStorage("hrms_teams", initialTeams);
-  const [departments, setDepartments] = useLocalStorage(
-    "hrms_departments",
-    initialDepartments
-  );
+  const [employees, setEmployees] = useLocalStorage("hrms_employees", []);
+  const [teams, setTeams] = useLocalStorage("hrms_teams", []);
+  const [departments, setDepartments] = useLocalStorage("hrms_departments", []);
   const [designations, setDesignations] = useLocalStorage(
     "hrms_designations",
-    initialDesignations
+    []
   );
-  const [locations, setLocations] = useLocalStorage(
-    "hrms_locations",
-    initialLocations
-  );
+  const [locations, setLocations] = useLocalStorage("hrms_locations", []);
   const [companyMessages, setCompanyMessages] = useLocalStorage(
     "hrms_company_messages",
-    initialMessages
+    []
   );
-  const [onboarding, setOnboarding] = useLocalStorage(
-    "hrms_onboarding",
-    initialOnboarding
-  );
-  const [offboarding, setOffboarding] = useLocalStorage(
-    "hrms_offboarding",
-    initialOffboarding
-  );
-  const [roles, setRoles] = useLocalStorage("hrms_roles", initialRoles);
-  const [shifts, setShifts] = useLocalStorage("hrms_shifts", initialShifts);
+  const [onboarding, setOnboarding] = useLocalStorage("hrms_onboarding", []);
+  const [offboarding, setOffboarding] = useLocalStorage("hrms_offboarding", []);
+  const [roles, setRoles] = useLocalStorage("hrms_roles", []);
+  const [shifts, setShifts] = useLocalStorage("hrms_shifts", []);
   const [companySettings, setCompanySettings] = useLocalStorage(
     "hrms_company_settings",
-    initialCompanySettings
+    {}
   );
   const [leaveRequests, setLeaveRequests] = useLocalStorage(
     "hrms_leave_requests",
-    initialLeaveRequests
+    []
   );
   const [notifications, setNotifications] = useLocalStorage(
     "hrms_notifications",
-    initialNotifications
+    []
   );
-  const [policies, setPolicies] = useLocalStorage(
-    "hrms_policies",
-    initialPolicies
-  );
+  const [policies, setPolicies] = useLocalStorage("hrms_policies", []);
   const [companyHolidays, setCompanyHolidays] = useLocalStorage(
     "hrms_company_holidays",
-    initialCompanyHolidays
+    []
   );
-  const [hrRequests, setHrRequests] = useLocalStorage(
-    "hrms_hr_requests",
-    initialHrRequests
-  );
+  const [hrRequests, setHrRequests] = useLocalStorage("hrms_hr_requests", []);
 
   const logAction = (action, details = {}, before = null, after = null) => {
     const newLog = {
@@ -663,26 +95,30 @@ export const AppProvider = ({ children }) => {
 
   // Enhanced API functions for leave requests with better error handling
   const leaveApi = {
-    getAll: async () => {
+    getAll: async (filters = {}) => {
       try {
-        console.log("Fetching all leaves from backend...");
-        const response = await fetch(`${API_BASE_URL}/leaves`);
+        console.log("Fetching all leaves from backend...", filters);
+        const queryParams = new URLSearchParams();
+        if (filters.status) queryParams.append("status", filters.status);
+        if (filters.employeeId)
+          queryParams.append("employeeId", filters.employeeId);
+
+        const url = `${API_BASE_URL}/leaves${
+          queryParams.toString() ? `?${queryParams.toString()}` : ""
+        }`;
+        const response = await fetch(url);
+
         if (response.ok) {
           const data = await response.json();
           console.log("Leaves fetched successfully:", data);
-          // Update local state with data from backend
           setLeaveRequests(data);
           return data;
         } else {
           console.error("Failed to fetch leaves, status:", response.status);
-          // Fallback to local storage if API fails
-          console.log("Using local storage data as fallback");
           return leaveRequests;
         }
       } catch (error) {
         console.error("Error fetching leaves:", error);
-        console.log("Using local storage data due to connection error");
-        // Fallback to local storage
         return leaveRequests;
       }
     },
@@ -729,21 +165,40 @@ export const AppProvider = ({ children }) => {
       }
     },
 
-    getAllForHR: async () => {
+    getPendingForApprover: async (approverId) => {
       try {
-        console.log("Fetching all leaves for HR...");
-        const response = await fetch(`${API_BASE_URL}/leaves`);
+        if (!approverId) {
+          console.error("No approverId provided");
+          return [];
+        }
+
+        console.log("Fetching pending leaves for approver:", approverId);
+        const response = await fetch(
+          `${API_BASE_URL}/leaves/approver/${approverId}`
+        );
+
         if (response.ok) {
           const data = await response.json();
-          console.log("All leaves fetched for HR:", data);
+          console.log("Pending leaves fetched for approver:", data);
           return data;
         } else {
           console.error(
-            "Failed to fetch all leaves for HR, status:",
+            "Failed to fetch pending leaves, status:",
             response.status
           );
-          return leaveRequests;
+          return [];
         }
+      } catch (error) {
+        console.error("Error fetching pending leaves:", error);
+        return [];
+      }
+    },
+
+    getAllForHR: async (filters = {}) => {
+      try {
+        console.log("Fetching all leaves for HR...", filters);
+        const data = await leaveApi.getAll(filters);
+        return data;
       } catch (error) {
         console.error("Error fetching all leaves for HR:", error);
         return leaveRequests;
@@ -758,6 +213,16 @@ export const AppProvider = ({ children }) => {
         if (!leaveData.employeeId) {
           console.error("No employeeId provided in leaveData:", leaveData);
           throw new Error("Employee ID is required");
+        }
+
+        // Add employee email if not provided
+        if (!leaveData.employeeEmail) {
+          const employee = employees.find(
+            (emp) => emp.id === leaveData.employeeId
+          );
+          if (employee) {
+            leaveData.employeeEmail = employee.email;
+          }
         }
 
         const response = await fetch(`${API_BASE_URL}/leaves`, {
@@ -804,12 +269,19 @@ export const AppProvider = ({ children }) => {
     update: async (id, updatedData) => {
       try {
         console.log("Updating leave status:", id, updatedData);
+
+        // Include who is performing the action
+        const updatePayload = {
+          ...updatedData,
+          actionBy: user?.name || "Admin",
+        };
+
         const response = await fetch(`${API_BASE_URL}/leaves/${id}/status`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(updatedData),
+          body: JSON.stringify(updatePayload),
         });
 
         if (response.ok) {
@@ -844,6 +316,11 @@ export const AppProvider = ({ children }) => {
               description: `Your leave request has been rejected by ${
                 updatedData.rejectedBy || "Admin"
               }.`,
+            });
+          } else if (updatedData.status === "cancelled") {
+            addNotification({
+              title: "Leave Request Cancelled",
+              description: `Your leave request has been cancelled.`,
             });
           }
 

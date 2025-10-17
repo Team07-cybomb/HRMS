@@ -10,6 +10,10 @@ const leaveSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    employeeEmail: {
+      type: String,
+      required: true,
+    },
     type: {
       type: String,
       required: true,
@@ -30,7 +34,7 @@ const leaveSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "cancelled"],
       default: "pending",
     },
     appliedDate: {
@@ -39,7 +43,10 @@ const leaveSchema = new mongoose.Schema(
     },
     approver: {
       type: String,
-      default: "HR/Admin",
+      required: true,
+    },
+    approverId: {
+      type: String,
     },
     approvedDate: {
       type: Date,
@@ -51,6 +58,12 @@ const leaveSchema = new mongoose.Schema(
       type: String,
     },
     rejectedBy: {
+      type: String,
+    },
+    cancelledDate: {
+      type: Date,
+    },
+    cancelledBy: {
       type: String,
     },
     days: {
@@ -66,5 +79,10 @@ const leaveSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Index for better query performance
+leaveSchema.index({ employeeId: 1, status: 1 });
+leaveSchema.index({ status: 1 });
+leaveSchema.index({ startDate: 1, endDate: 1 });
 
 module.exports = mongoose.model("Leave", leaveSchema);

@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getAllLeaves,
   getLeavesByEmployee,
+  getPendingLeavesForApprover,
   createLeave,
   updateLeaveStatus,
   deleteLeave,
@@ -13,6 +14,9 @@ router.get("/", getAllLeaves);
 
 // Get leave requests by employee ID
 router.get("/employee/:employeeId", getLeavesByEmployee);
+
+// Get pending leaves for approver
+router.get("/approver/:approverId", getPendingLeavesForApprover);
 
 // Create new leave request
 router.post("/", createLeave);
