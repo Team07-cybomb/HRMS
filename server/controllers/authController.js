@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 
 // REGISTER USER (manual ID)
 exports.registerUser = async (req, res) => {
-  const { email, password, role, adminId, hrId, employeeId } = req.body;
+  const { name, email, password, role, adminId, hrId, employeeId } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
@@ -13,6 +13,7 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
 
     const newUser = new User({
+      name: name || email.split('@')[0], // Provide default name if not provided
       email,
       password,
       role,
@@ -39,13 +40,19 @@ exports.registerUser = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server Error' });
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 
+// LOGIN USER
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
+
+  // Validate input
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required' });
+  }
 
   try {
     console.log('Login attempt for email:', email);
@@ -112,43 +119,6 @@ exports.loginUser = async (req, res) => {
 
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Server Error' });
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
-
-
-// LOGIN USER
-// exports.loginUser = async (req, res) => {
-//   const { email, password } = req.body;
-
-//   try {
-//     // 1️⃣ Find user by email
-//     const user = await User.findOne({ email });
-//     if (!user) return res.status(400).json({ message: 'User not found' });
-
-//     // 2️⃣ Check password
-//     const isMatch = await user.matchPassword(password);
-//     if (!isMatch) return res.status(400).json({ message: 'Invalid password' });
-
-//     // 3️⃣ Generate JWT token
-//     const token = jwt.sign(
-//       { id: user._id, role: user.role },
-//       process.env.JWT_SECRET,
-//       { expiresIn: '1d' }
-//     );
-
-//     // 4️⃣ Respond with user data + token
-//     res.status(200).json({
-//       _id: user._id,
-//       email: user.email,
-//       role: user.role,
-//       adminId: user.adminId || null,
-//       hrId: user.hrId || null,
-//       employeeId: user.employeeId || null,
-//       token,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server Error' });
-//   }
-// };

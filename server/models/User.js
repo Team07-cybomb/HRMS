@@ -1,9 +1,8 @@
-// models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  name: { type: String }, // Changed from required to optional
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { 
@@ -11,6 +10,10 @@ const userSchema = new mongoose.Schema({
     enum: ['employee', 'hr', 'admin', 'employer'],
     default: 'employee'
   },
+  // Add the ID fields that your authController expects
+  adminId: { type: String },
+  hrId: { type: String },
+  employeeId: { type: String },
   roles: [{ type: String }],
   teamId: { type: Number, default: 1 },
   department: String,
