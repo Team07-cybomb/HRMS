@@ -1,3 +1,5 @@
+
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
 
@@ -23,7 +25,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
- // In AuthContext.jsx - Update the login function
+// In your AuthContext.jsx - Enhanced login function
 const login = async (email, password) => {
   try {
     const res = await fetch('http://localhost:5000/api/auth/login', {
@@ -36,7 +38,7 @@ const login = async (email, password) => {
 
     if (!res.ok) throw new Error(data.message || 'Login failed');
 
-    // Enhanced user data with required properties
+    // Enhanced user data with all required properties
     const userData = {
       id: data._id || data.id,
       _id: data._id,
@@ -44,7 +46,9 @@ const login = async (email, password) => {
       role: data.role,
       name: data.name || email.split('@')[0], // Fallback name
       teamId: data.teamId || 1, // Default team ID
-      teamIds: data.teamIds || [data.teamId || 1] // Array of team IDs
+      teamIds: data.teamIds || [data.teamId || 1], // Array of team IDs
+      // Add any other fields your backend expects
+      employeeId: data._id || data.id, // Ensure employeeId is set
     };
     
     const token = data.token;
@@ -53,6 +57,8 @@ const login = async (email, password) => {
       setUser(userData);
       localStorage.setItem('hrms_user', JSON.stringify(userData));
       localStorage.setItem('hrms_token', token);
+
+      console.log('User data after login:', userData); // Debug log
 
       toast({
         title: "Welcome back!",
