@@ -26,7 +26,7 @@ import SearchResultsPage from '@/pages/SearchResultsPage';
 import CompanyPolicyPage from '@/pages/CompanyPolicyPage';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-
+import FeedsSection from '@/pages/FeedsSection';
 const AppRoutes = () => {
   const { user } = useAuth();
   const isEmployee = user?.role === 'employee';
@@ -150,6 +150,13 @@ const AppRoutes = () => {
         <ProtectedRoute>
           <Layout>
             <CompanyPolicyPage />
+          </Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/feeds" element={
+        <ProtectedRoute>
+          <Layout>
+            <FeedsSection />
           </Layout>
         </ProtectedRoute>
       } />
