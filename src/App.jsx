@@ -26,7 +26,7 @@ import SearchResultsPage from '@/pages/SearchResultsPage';
 import CompanyPolicyPage from '@/pages/CompanyPolicyPage';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-
+import { AdminAttendanceProvider } from '@/contexts/AdminAttendanceContext';
 const AppRoutes = () => {
   const { user } = useAuth();
   const isEmployee = user?.role === 'employee';
@@ -168,6 +168,7 @@ function App() {
       
       <ThemeProvider defaultTheme="light" storageKey="hrms-ui-theme">
         <AuthProvider>
+          <AdminAttendanceProvider>
           <TenantProvider>
             <AppProvider>
               <Router>
@@ -178,6 +179,7 @@ function App() {
               </Router>
             </AppProvider>
           </TenantProvider>
+           </AdminAttendanceProvider>
         </AuthProvider>
       </ThemeProvider>
     </>
