@@ -69,28 +69,17 @@ export const AppProvider = ({ children }) => {
     setAuditLogs((prevLogs) => [newLog, ...prevLogs]);
   };
 
+  // Empty notification functions to maintain compatibility
   const addNotification = (notification) => {
-    const newNotification = {
-      ...notification,
-      id: uuidv4(),
-      read: false,
-      date: new Date().toISOString(),
-    };
-    setNotifications((prev) =>
-      [newNotification, ...prev].sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
-      )
-    );
+    // Do nothing - notification system disabled
   };
 
   const markAsRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+    // Do nothing - notification system disabled
   };
 
   const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    // Do nothing - notification system disabled
   };
 
   // Enhanced API functions for leave requests with better error handling
@@ -205,14 +194,26 @@ export const AppProvider = ({ children }) => {
       }
     },
 
-    add: async (leaveData) => {
+    create: async (leaveData) => {
       try {
         console.log("Sending leave data to backend:", leaveData);
 
-        // Validate required fields - IMPROVED VALIDATION
+        // Validate required fields
         if (!leaveData.employeeId) {
-          console.error("No employeeId provided in leaveData:", leaveData);
           throw new Error("Employee ID is required");
+        }
+        if (!leaveData.startDate || !leaveData.endDate) {
+          throw new Error("Start date and end date are required");
+        }
+        if (!leaveData.reason || leaveData.reason.trim().length < 10) {
+          throw new Error("Reason must be at least 10 characters long");
+        }
+
+        // Validate dates
+        const startDate = new Date(leaveData.startDate);
+        const endDate = new Date(leaveData.endDate);
+        if (endDate < startDate) {
+          throw new Error("End date cannot be before start date");
         }
 
         // Add employee email if not provided
@@ -222,27 +223,41 @@ export const AppProvider = ({ children }) => {
           );
           if (employee) {
             leaveData.employeeEmail = employee.email;
+          } else {
+            leaveData.employeeEmail = `${leaveData.employeeId}@company.com`;
           }
         }
+
+        // Ensure status is pending for new requests
+        const leaveDataWithStatus = {
+          ...leaveData,
+          status: "pending", // Force status to pending
+        };
 
         const response = await fetch(`${API_BASE_URL}/leaves`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(leaveData),
+          body: JSON.stringify(leaveDataWithStatus),
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              `Failed to create leave request: ${response.status}`
-          );
+          let errorMessage = `Failed to create leave request: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch (parseError) {
+            console.error("Error parsing error response:", parseError);
+          }
+          throw new Error(errorMessage);
         }
 
         const newLeave = await response.json();
-        console.log("Leave created successfully in database:", newLeave);
+        console.log(
+          "Leave created successfully in database with PENDING status:",
+          newLeave
+        );
 
         // Update local state
         setLeaveRequests((prev) => [...prev, newLeave]);
@@ -253,11 +268,6 @@ export const AppProvider = ({ children }) => {
           null,
           newLeave
         );
-
-        addNotification({
-          title: "Leave Request Submitted",
-          description: `Your ${newLeave.type} request has been submitted for approval.`,
-        });
 
         return newLeave;
       } catch (error) {
@@ -301,28 +311,6 @@ export const AppProvider = ({ children }) => {
             null,
             updatedLeave
           );
-
-          // Add notification for the employee about status change
-          if (updatedData.status === "approved") {
-            addNotification({
-              title: "Leave Request Approved",
-              description: `Your leave request has been approved by ${
-                updatedData.approvedBy || "Admin"
-              }.`,
-            });
-          } else if (updatedData.status === "rejected") {
-            addNotification({
-              title: "Leave Request Rejected",
-              description: `Your leave request has been rejected by ${
-                updatedData.rejectedBy || "Admin"
-              }.`,
-            });
-          } else if (updatedData.status === "cancelled") {
-            addNotification({
-              title: "Leave Request Cancelled",
-              description: `Your leave request has been cancelled.`,
-            });
-          }
 
           return updatedLeave;
         } else {
@@ -389,18 +377,6 @@ export const AppProvider = ({ children }) => {
         null,
         newItem
       );
-      if (itemName === "Company Message") {
-        addNotification({
-          title: `New Company Message: ${newItem.title}`,
-          description: newItem.content.substring(0, 50) + "...",
-        });
-      }
-      if (itemName === "HR Request") {
-        addNotification({
-          title: `New HR Request from ${user?.name}`,
-          description: `Type: ${newItem.type}`,
-        });
-      }
       return newItem;
     },
     update: (id, updatedData) => {
@@ -477,7 +453,8 @@ export const AppProvider = ({ children }) => {
         });
       },
     },
-    notifications,
+    // Keep notifications in context but with empty functionality
+    notifications: [], // Empty array to prevent filter errors
     addNotification,
     markAsRead,
     markAllAsRead,

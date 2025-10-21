@@ -9,6 +9,7 @@ const leaveSchema = new mongoose.Schema(
     employeeId: {
       type: String,
       required: true,
+      index: true, // Add index for better query performance
     },
     employeeEmail: {
       type: String,
@@ -17,7 +18,7 @@ const leaveSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ["Annual Leave", "Sick Leave", "Personal Leave", "Unpaid Leave"],
+      enum: ["Annual Leave", "Sick Leave", "Personal Leave"],
     },
     startDate: {
       type: Date,
@@ -80,9 +81,55 @@ const leaveSchema = new mongoose.Schema(
   }
 );
 
+// Leave balance schema
+const leaveBalanceSchema = new mongoose.Schema(
+  {
+    employeeId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true, // Add index for better query performance
+    },
+    employeeEmail: {
+      type: String,
+      required: true,
+    },
+    annualLeave: {
+      type: Number,
+      default: 6,
+      min: 0,
+    },
+    sickLeave: {
+      type: Number,
+      default: 6,
+      min: 0,
+    },
+    personalLeave: {
+      type: Number,
+      default: 6,
+      min: 0,
+    },
+    lastResetDate: {
+      type: Date,
+      default: Date.now,
+    },
+    tenantId: {
+      type: String,
+      default: "TENANT01",
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
 // Index for better query performance
 leaveSchema.index({ employeeId: 1, status: 1 });
 leaveSchema.index({ status: 1 });
 leaveSchema.index({ startDate: 1, endDate: 1 });
+leaveBalanceSchema.index({ employeeId: 1 });
 
-module.exports = mongoose.model("Leave", leaveSchema);
+const Leave = mongoose.model("Leave", leaveSchema);
+const LeaveBalance = mongoose.model("LeaveBalance", leaveBalanceSchema);
+
+module.exports = { Leave, LeaveBalance };
