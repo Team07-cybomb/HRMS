@@ -55,9 +55,237 @@ import {
   Eye,
   Edit,
   Trash2,
-  BarChart3
+  BarChart3,
+  Image,
+  MapPinIcon
 } from 'lucide-react';
 
+// Photo Viewer Component
+const PhotoViewer = ({ src, alt, trigger }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!src) {
+    return (
+      <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded border">
+        <Image className="w-4 h-4 text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsOpen(true)}
+        className="p-1 hover:bg-gray-100"
+      >
+        {trigger || (
+          <div className="w-10 h-10 bg-blue-50 rounded border border-blue-200 flex items-center justify-center">
+            <Image className="w-4 h-4 text-blue-500" />
+          </div>
+        )}
+      </Button>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{alt || 'Attendance Photo'}</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center">
+            <img 
+              src={src} 
+              alt={alt}
+              className="max-w-full max-h-96 object-contain rounded-lg"
+              onError={(e) => {
+                e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMjUgODVWMTE1SDc1Vjg1SDEyNVpNMTI1IDc1SDc1Qzc1IDcwLjU4MTcgNzguNTgxNyA2NyA4MyA2N0gxMTdDMTIxLjQxOCA2NyAxMjUgNzAuNTgxNyAxMjUgNzVaTTEzNSA2N0MxMzUgNTcuMDYwOSAxMjYuOTM5IDQ5IDExNyA0OUg4M0M3My4wNjA5IDQ5IDY1IDU3LjA2MDkgNjUgNjdWMTMzQzY1IDE0Mi45MzkgNzMuMDYwOSAxNTEgODMgMTUxSDExN0MxMjYuOTM5IDE1MSAxMzUgMTQyLjkzOSAxMzUgMTMzVjY3WiIgZmlsbD0iIzlDQThBNiIvPgo8L3N2Zz4K';
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
+// Location Viewer Component
+const LocationViewer = ({ location, type }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!location || !location.address) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsOpen(true)}
+        className="p-1 h-auto hover:bg-gray-100"
+      >
+        <div className="flex items-center space-x-1 text-xs">
+          <MapPinIcon className="w-3 h-3 text-green-600" />
+          <span className="max-w-20 truncate">View</span>
+        </div>
+      </Button>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{type} Location</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Address</Label>
+              <p className="text-sm mt-1 p-2 bg-gray-50 rounded">{location.address}</p>
+            </div>
+            {location.latitude && location.longitude && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Latitude</Label>
+                  <p className="text-sm mt-1">{location.latitude}</p>
+                </div>
+                <div>
+                  <Label>Longitude</Label>
+                  <p className="text-sm mt-1">{location.longitude}</p>
+                </div>
+              </div>
+            )}
+            {location.accuracy && (
+              <div>
+                <Label>Accuracy</Label>
+                <p className="text-sm mt-1">{location.accuracy}m</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
+// Attendance Details Modal
+const AttendanceDetailsModal = ({ record, isOpen, onClose }) => {
+  if (!record) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Attendance Details</DialogTitle>
+          <DialogDescription>
+            Detailed information for {record.employeeName || record.employee?.name}'s attendance
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          {/* Employee Information */}
+          <div>
+            <h4 className="font-semibold mb-3">Employee Information</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Name</Label>
+                <p className="text-sm mt-1">{record.employeeName || record.employee?.name}</p>
+              </div>
+              <div>
+                <Label>Date</Label>
+                <p className="text-sm mt-1">{new Date(record.date).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Badge className={getStatusColor(record.status)}>
+                  {record.status ? record.status.charAt(0).toUpperCase() + record.status.slice(1) : 'Absent'}
+                </Badge>
+              </div>
+              <div>
+                <Label>Shift</Label>
+                <p className="text-sm mt-1">{record.shift || 'Day Shift'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Check-in Information */}
+          {record.checkIn && (
+            <div>
+              <h4 className="font-semibold mb-3">Check-in Details</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Time</Label>
+                  <p className="text-sm mt-1">{record.checkIn}</p>
+                </div>
+                <div>
+                  <Label>Location</Label>
+                  <LocationViewer location={record.checkInLocation} type="Check-in" />
+                </div>
+                <div className="col-span-2">
+                  <Label>Photo</Label>
+                  <div className="mt-2">
+                    <PhotoViewer 
+                      src={record.checkInPhoto} 
+                      alt={`Check-in photo for ${record.employeeName}`}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Check-out Information */}
+          {record.checkOut && (
+            <div>
+              <h4 className="font-semibold mb-3">Check-out Details</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Time</Label>
+                  <p className="text-sm mt-1">{record.checkOut}</p>
+                </div>
+                <div>
+                  <Label>Location</Label>
+                  <LocationViewer location={record.checkOutLocation} type="Check-out" />
+                </div>
+                <div className="col-span-2">
+                  <Label>Photo</Label>
+                  <div className="mt-2">
+                    <PhotoViewer 
+                      src={record.checkOutPhoto} 
+                      alt={`Check-out photo for ${record.employeeName}`}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Summary */}
+          <div>
+            <h4 className="font-semibold mb-3">Summary</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Duration</Label>
+                <p className="text-sm mt-1">{record.duration || '0h 0m'}</p>
+              </div>
+              <div>
+                <Label>Location</Label>
+                <p className="text-sm mt-1">{record.location || 'Office'}</p>
+              </div>
+              <div>
+                <Label>Team ID</Label>
+                <p className="text-sm mt-1">{record.teamId}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Update the ShiftScheduleForm and EmployeeAssignmentForm components (keep them the same as before)
 const ShiftScheduleForm = ({ onSubmit, onCancel, loading, initialData }) => {
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
@@ -264,6 +492,8 @@ const AdminAttendanceSection = () => {
   const [isShiftFormOpen, setShiftFormOpen] = useState(false);
   const [isAssignmentFormOpen, setAssignmentFormOpen] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [reportFilters, setReportFilters] = useState({
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
@@ -304,6 +534,11 @@ const AdminAttendanceSection = () => {
     } catch (error) {
       console.error('Error fetching data for tab:', error);
     }
+  };
+
+  const handleViewDetails = (record) => {
+    setSelectedRecord(record);
+    setIsDetailsOpen(true);
   };
 
   const handleCreateShift = async (data) => {
@@ -447,9 +682,20 @@ const AdminAttendanceSection = () => {
     }
   };
 
+  // Helper function for status colors
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'present': return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400';
+      case 'late': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400';
+      case 'absent': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400';
+      case 'half-day': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    }
+  };
+
   const renderOverview = () => (
     <div className="space-y-6">
-      {/* Statistics Cards */}
+      {/* Statistics Cards - Keep the same as before */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50">
           <CardContent className="p-6">
@@ -522,7 +768,7 @@ const AdminAttendanceSection = () => {
         </Card>
       </div>
 
-      {/* Recent Attendance */}
+      {/* Recent Attendance - UPDATED TABLE */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -563,12 +809,12 @@ const AdminAttendanceSection = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
-                  <TableHead>Shift</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead>Check In</TableHead>
                   <TableHead>Check Out</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Location</TableHead>
+                  <TableHead>Photos</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -577,24 +823,51 @@ const AdminAttendanceSection = () => {
                   attendanceData.map((record) => (
                     <TableRow key={record._id}>
                       <TableCell className="font-medium">
-                        {record.employeeName || record.employee?.name || 'Unknown Employee'}
-                      </TableCell>
-                      <TableCell>{record.shiftName || record.shift?.name || 'No Shift'}</TableCell>
-                      <TableCell>
-                        {record.checkIn ? new Date(record.checkIn).toLocaleTimeString() : '-'}
+                        {record.employee || record.employeeName || record.employee?.name || 'Unknown Employee'}
                       </TableCell>
                       <TableCell>
-                        {record.checkOut ? new Date(record.checkOut).toLocaleTimeString() : '-'}
+                        {new Date(record.date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell>{record.totalHours ? `${record.totalHours}h` : '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <span>{record.checkIn || '-'}</span>
+                          {record.checkInLocation && (
+                            <LocationViewer location={record.checkInLocation} type="Check-in" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <span>{record.checkOut || '-'}</span>
+                          {record.checkOutLocation && (
+                            <LocationViewer location={record.checkOutLocation} type="Check-out" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{record.duration || '0h 0m'}</TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(record.status)}>
                           {record.status ? record.status.charAt(0).toUpperCase() + record.status.slice(1) : 'Absent'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{record.location || record.checkInLocation || 'Office'}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm">
+                        <div className="flex space-x-2">
+                          <PhotoViewer 
+                            src={record.checkInPhoto} 
+                            alt={`Check-in photo for ${record.employee || record.employeeName}`}
+                          />
+                          <PhotoViewer 
+                            src={record.checkOutPhoto} 
+                            alt={`Check-out photo for ${record.employee || record.employeeName}`}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleViewDetails(record)}
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
                       </TableCell>
@@ -615,6 +888,7 @@ const AdminAttendanceSection = () => {
     </div>
   );
 
+  // Keep the renderShiftManagement and renderReports functions the same as before
   const renderShiftManagement = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -892,17 +1166,6 @@ const AdminAttendanceSection = () => {
     </div>
   );
 
-  // Helper function for status colors
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'present': return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400';
-      case 'late': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400';
-      case 'absent': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400';
-      case 'half-day': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-    }
-  };
-
   const tabs = [
     { id: 'overview', label: 'Dashboard Overview', icon: BarChart3 },
     { id: 'shifts', label: 'Shift Management', icon: Settings },
@@ -927,6 +1190,16 @@ const AdminAttendanceSection = () => {
   return (
     <>
       <Helmet><title>Admin Attendance - HRMS Pro</title></Helmet>
+
+      {/* Attendance Details Modal */}
+      <AttendanceDetailsModal
+        record={selectedRecord}
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedRecord(null);
+        }}
+      />
 
       {/* Shift Form Dialog */}
       <Dialog open={isShiftFormOpen} onOpenChange={setShiftFormOpen}>
