@@ -37,7 +37,8 @@ const allMenuItems = [
   { icon: CheckSquare, label: 'Approvals', path: '/approvals', roles: ['admin', 'hr'] },
   { icon: FileText, label: 'HR Letters', path: '/hr-letters', roles: ['admin', 'hr'] },
   { icon: Settings, label: 'Settings', path: '/settings', roles: ['admin', 'hr', 'employee'] },
-  { icon: Shield, label: 'Audit', path: '/audit', roles: ['admin'] }
+  { icon: Shield, label: 'Audit', path: '/audit', roles: ['admin'] },
+  {icon: Shield, label: 'Announcements', path: '/feeds', roles: ['admin', 'hr',]}
 ];
 
 const Sidebar = ({ isOpen, onToggle }) => {
@@ -46,7 +47,7 @@ const Sidebar = ({ isOpen, onToggle }) => {
 
   const menuItems = allMenuItems.filter(item => {
     if (user?.role === 'employee') {
-      return !['/teams', '/organization', '/employees', '/onboarding', '/offboarding', '/payroll', '/reports', '/audit', '/hr-letters'].includes(item.path);
+      return !['/teams', '/organization', '/employees', '/onboarding', '/offboarding', '/payroll', '/reports', '/audit', '/hr-letters','/feeds'].includes(item.path);
     }
     return item.roles.includes(user?.role);
   });

@@ -24,14 +24,12 @@ import {
   AlertCircle,
   User,
   CalendarDays,
-  PauseCircle,
   TrendingDown,
-  Users,
   Ban,
   RotateCcw,
 } from "lucide-react";
 
-const LeaveTab = () => {
+const EmployeeLeavePage = () => {
   const { leaveRequests: leaveApi } = useAppContext();
   const { user } = useAuth();
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -832,4 +830,4 @@ const LeaveTab = () => {
   );
 };
 
-export default LeaveTab;
+export default EmployeeLeavePage;

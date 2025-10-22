@@ -1,290 +1,649 @@
-
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Helmet } from 'react-helmet';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/components/ui/use-toast';
-import { useAppContext } from '@/contexts/AppContext';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAppContext } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 import {
   Calendar,
-  Plus,
-  Search,
-  Filter,
   Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
   User,
   CalendarDays,
-  MoreVertical,
-  PauseCircle
-} from 'lucide-react';
-
-const ApplyLeaveForm = ({ onSave, onCancel }) => {
-  const [formData, setFormData] = useState({
-    type: 'Annual Leave',
-    startDate: '',
-    endDate: '',
-    reason: ''
-  });
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="type">Leave Type</Label>
-        <select id="type" name="type" value={formData.type} onChange={handleChange} className="w-full p-2 border rounded-md">
-          <option>Annual Leave</option>
-          <option>Sick Leave</option>
-          <option>Personal Leave</option>
-          <option>Unpaid Leave</option>
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="startDate">Start Date</Label>
-          <Input id="startDate" name="startDate" type="date" value={formData.startDate} onChange={handleChange} required />
-        </div>
-        <div>
-          <Label htmlFor="endDate">End Date</Label>
-          <Input id="endDate" name="endDate" type="date" value={formData.endDate} onChange={handleChange} required />
-        </div>
-      </div>
-      <div>
-        <Label htmlFor="reason">Reason</Label>
-        <Textarea id="reason" name="reason" value={formData.reason} onChange={handleChange} required />
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit">Submit Request</Button>
-      </DialogFooter>
-    </form>
-  );
-};
+  PauseCircle,
+  Filter,
+  Search,
+  Users,
+  FileText,
+  TrendingDown,
+  RotateCcw,
+  Download,
+} from "lucide-react";
 
 const LeaveSection = () => {
-  const { leaveRequests: leaveApi, logAction } = useAppContext();
-  const { user, can } = useAuth();
-  const [activeTab, setActiveTab] = useState('requests');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isApplyLeaveOpen, setApplyLeaveOpen] = useState(false);
+  const { leaveRequests: leaveApi } = useAppContext();
+  const { user } = useAuth();
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [leaveBalances, setLeaveBalances] = useState({});
+  const [activeTab, setActiveTab] = useState("requests");
 
-  const handleApplyLeave = (leaveData) => {
-    const newRequest = {
-      ...leaveData,
-      employee: user.name,
-      employeeId: user.id,
-      status: 'pending',
-      appliedDate: new Date().toISOString().split('T')[0],
-      approver: 'HR/Admin'
+  // Check if user can manage leaves
+  const canManageLeaves = () => {
+    return (
+      user?.role === "admin" || user?.role === "hr" || user?.role === "employer"
+    );
+  };
+
+  // Fetch all employees from Employee collection
+  const fetchAllEmployees = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/employees");
+      if (response.ok) {
+        const employees = await response.json();
+        setAllEmployees(employees);
+        return employees;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      return [];
+    }
+  };
+
+  // Load leave requests for all employees
+  const loadLeaveRequests = async () => {
+    try {
+      setLoading(true);
+      let requests = [];
+
+      if (leaveApi?.getAll) {
+        requests = await leaveApi.getAll();
+      } else {
+        // Mock data for testing
+        requests = [
+          {
+            id: "1",
+            type: "Annual Leave",
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 86400000).toISOString(),
+            reason: "Vacation",
+            status: "pending",
+            days: 1,
+            appliedDate: new Date().toISOString(),
+            employee: "John Doe",
+            employeeId: "EMP001",
+            employeeEmail: "john@company.com",
+          },
+          {
+            id: "2",
+            type: "Sick Leave",
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 2 * 86400000).toISOString(),
+            reason: "Flu",
+            status: "approved",
+            days: 2,
+            appliedDate: new Date(Date.now() - 86400000).toISOString(),
+            employee: "Jane Smith",
+            employeeId: "EMP002",
+            employeeEmail: "jane@company.com",
+            approvedDate: new Date().toISOString(),
+            approvedBy: "HR Manager",
+          },
+          {
+            id: "3",
+            type: "Personal Leave",
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 86400000).toISOString(),
+            reason: "Family event",
+            status: "pending",
+            days: 1,
+            appliedDate: new Date().toISOString(),
+            employee: "Mike Johnson",
+            employeeId: "EMP003",
+            employeeEmail: "mike@company.com",
+          },
+        ];
+      }
+
+      console.log("Loaded leave requests:", requests);
+      setLeaveRequests(Array.isArray(requests) ? requests : []);
+    } catch (error) {
+      console.error("Error loading leave requests:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load leave requests",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load leave balances for all employees
+  const loadLeaveBalances = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/leaves/balances");
+      if (response.ok) {
+        const balances = await response.json();
+
+        // Enhance balances with employee data
+        const employees = await fetchAllEmployees();
+        const enhancedBalances = { ...balances };
+
+        // Ensure all employees have balance entries
+        employees.forEach((employee) => {
+          if (!enhancedBalances[employee.employeeId]) {
+            enhancedBalances[employee.employeeId] = {
+              annualLeave: 6,
+              sickLeave: 6,
+              personalLeave: 6,
+              employeeName: employee.name,
+              employeeEmail: employee.email,
+              employeeId: employee.employeeId,
+            };
+          } else {
+            // Enhance existing balance with employee data
+            enhancedBalances[employee.employeeId] = {
+              ...enhancedBalances[employee.employeeId],
+              employeeName: employee.name,
+              employeeEmail: employee.email,
+              employeeId: employee.employeeId,
+            };
+          }
+        });
+
+        setLeaveBalances(enhancedBalances);
+      } else {
+        // Fallback: calculate from leave requests and employee data
+        calculateBalancesFromRequests();
+      }
+    } catch (error) {
+      console.error("Error loading leave balances:", error);
+      // Fallback: calculate from leave requests
+      calculateBalancesFromRequests();
+    }
+  };
+
+  // Calculate balances from leave requests (fallback)
+  const calculateBalancesFromRequests = async () => {
+    const employees = await fetchAllEmployees();
+    const balances = {};
+
+    // Initialize all employees with default balances
+    employees.forEach((emp) => {
+      balances[emp.employeeId] = {
+        annualLeave: 6,
+        sickLeave: 6,
+        personalLeave: 6,
+        employeeName: emp.name,
+        employeeEmail: emp.email,
+        employeeId: emp.employeeId,
+      };
+    });
+
+    // Deduct approved leaves
+    leaveRequests.forEach((request) => {
+      if (request.status === "approved" && balances[request.employeeId]) {
+        const balance = balances[request.employeeId];
+        const fieldMap = {
+          "Annual Leave": "annualLeave",
+          "Sick Leave": "sickLeave",
+          "Personal Leave": "personalLeave",
+        };
+
+        const field = fieldMap[request.type];
+        if (field) {
+          balance[field] = Math.max(0, balance[field] - (request.days || 1));
+        }
+      }
+    });
+
+    setLeaveBalances(balances);
+  };
+
+  // Filter and search requests
+  useEffect(() => {
+    let filtered = leaveRequests;
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((req) => req.status === statusFilter);
+    }
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (req) =>
+          req.employee?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          req.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          req.reason?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          req.employeeId?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    setFilteredRequests(filtered);
+  }, [leaveRequests, statusFilter, searchTerm]);
+
+  // Load data on component mount
+  useEffect(() => {
+    loadLeaveRequests();
+    fetchAllEmployees();
+  }, [user]);
+
+  useEffect(() => {
+    if (leaveRequests.length > 0) {
+      loadLeaveBalances();
+    }
+  }, [leaveRequests]);
+
+  const getStatusBadge = (status) => {
+    const variants = {
+      pending: { bg: "bg-yellow-100 text-yellow-800", icon: Clock },
+      approved: { bg: "bg-green-100 text-green-800", icon: CheckCircle },
+      rejected: { bg: "bg-red-100 text-red-800", icon: XCircle },
+      cancelled: { bg: "bg-gray-100 text-gray-800", icon: XCircle },
     };
-    leaveApi.add(newRequest);
-    toast({ title: 'Leave Request Submitted', description: 'Your request has been sent for approval.' });
-    setApplyLeaveOpen(false);
+
+    const variant = variants[status] || variants.pending;
+    const IconComponent = variant.icon;
+
+    return (
+      <Badge className={`${variant.bg} flex items-center gap-1`}>
+        <IconComponent className="w-3 h-3" />
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
   };
 
-  const handleUpdateRequest = (id, status) => {
-    if (!can('approve:leave')) {
-      toast({ title: 'Permission Denied', variant: 'destructive' });
-      return;
+  const getLeaveTypeIcon = (type) => {
+    const icons = {
+      "Annual Leave": Calendar,
+      "Sick Leave": AlertCircle,
+      "Personal Leave": User,
+    };
+    return icons[type] || CalendarDays;
+  };
+
+  const handleStatusUpdate = async (leaveId, newStatus) => {
+    try {
+      if (leaveApi?.update) {
+        await leaveApi.update(leaveId, {
+          status: newStatus,
+          actionBy: user?.name || "Admin",
+        });
+      } else {
+        // Mock update for testing
+        console.log(`Updating leave ${leaveId} to ${newStatus}`);
+      }
+
+      toast({
+        title: "Success",
+        description: `Leave request ${newStatus} successfully`,
+      });
+
+      loadLeaveRequests(); // Refresh the list
+      loadLeaveBalances(); // Refresh balances
+    } catch (error) {
+      console.error("Error updating leave status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update leave request",
+        variant: "destructive",
+      });
     }
-    const request = leaveApi.getById(id);
-    leaveApi.update(id, { status });
-    logAction(`Leave Request ${status}`, { id, employee: request.employee });
-    toast({ title: `Request ${status}`, description: `Leave request from ${request.employee} has been ${status}.` });
   };
 
-  const leaveRequests = leaveApi.getAll();
-  const leavePolicies = [
-    { id: 'LP001', name: 'Annual Leave', allocation: 25 },
-    { id: 'LP002', name: 'Sick Leave', allocation: 12 },
-  ];
-  const leaveBalances = [
-    { employee: 'Sarah Johnson', annual: 17, sick: 10 },
-    { employee: 'Alex Rodriguez', annual: 15, sick: 9 },
-  ];
+  // Get remaining days for an employee
+  const getRemainingDays = (employeeId, type) => {
+    const balance = leaveBalances[employeeId];
+    if (!balance) return 0;
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      case 'hold': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+    const balanceMap = {
+      "Annual Leave": balance.annualLeave,
+      "Sick Leave": balance.sickLeave,
+      "Personal Leave": balance.personalLeave,
+    };
+
+    return balanceMap[type] || 0;
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending': return <Clock className="w-4 h-4" />;
-      case 'approved': return <CheckCircle className="w-4 h-4" />;
-      case 'rejected': return <XCircle className="w-4 h-4" />;
-      case 'hold': return <PauseCircle className="w-4 h-4" />;
-      default: return <AlertCircle className="w-4 h-4" />;
-    }
+  // Get balance color based on remaining days
+  const getBalanceColor = (days) => {
+    if (days >= 4) return "text-green-600";
+    if (days >= 2) return "text-yellow-600";
+    return "text-red-600";
   };
 
-  const filteredRequests = leaveRequests.filter(request =>
-    request.employee.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Export leave balances to CSV
+  const exportBalancesToCSV = () => {
+    const headers = [
+      "Employee ID",
+      "Employee Name",
+      "Email",
+      "Annual Leave",
+      "Sick Leave",
+      "Personal Leave",
+    ];
+    const csvData = Object.values(leaveBalances).map((balance) => [
+      balance.employeeId,
+      balance.employeeName,
+      balance.employeeEmail,
+      balance.annualLeave,
+      balance.sickLeave,
+      balance.personalLeave,
+    ]);
 
-  const renderLeaveRequests = () => (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input placeholder="Search leave requests..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-        </div>
-        <Button variant="outline" onClick={() => toast({ title: 'Filter clicked' })}><Filter className="w-4 h-4 mr-2" />Filter</Button>
-      </div>
+    const csvContent = [
+      headers.join(","),
+      ...csvData.map((row) => row.join(",")),
+    ].join("\n");
 
-      <div className="space-y-4">
-        {filteredRequests.map((request, index) => (
-          <motion.div key={request.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.1 }}>
-            <Card className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center"><User className="w-5 h-5 text-white" /></div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{request.employee}</h3>
-                    <p className="text-sm text-gray-500">{request.type}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Badge className={getStatusColor(request.status)}><div className="flex items-center space-x-1">{getStatusIcon(request.status)}<span>{request.status}</span></div></Badge>
-                  {can('approve:leave') && <button onClick={() => toast({ title: 'Options clicked' })} className="p-1 hover:bg-gray-100 rounded"><MoreVertical className="w-4 h-4 text-gray-500" /></button>}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                <div><p className="text-xs text-gray-500 mb-1">Start Date</p><p className="text-sm font-medium text-gray-900">{request.startDate}</p></div>
-                <div><p className="text-xs text-gray-500 mb-1">End Date</p><p className="text-sm font-medium text-gray-900">{request.endDate}</p></div>
-                <div><p className="text-xs text-gray-500 mb-1">Reason</p><p className="text-sm text-gray-900 truncate">{request.reason}</p></div>
-                <div><p className="text-xs text-gray-500 mb-1">Approver</p><p className="text-sm text-gray-900">{request.approver}</p></div>
-              </div>
-              {request.status === 'pending' && can('approve:leave') && (
-                <div className="flex items-center space-x-2 pt-2 border-t border-gray-100">
-                  <Button size="sm" onClick={() => handleUpdateRequest(request.id, 'approved')} className="bg-green-600 hover:bg-green-700">Approve</Button>
-                  <Button size="sm" onClick={() => handleUpdateRequest(request.id, 'rejected')} className="border-red-300 text-red-600 hover:bg-red-50">Reject</Button>
-                  <Button size="sm" onClick={() => handleUpdateRequest(request.id, 'hold')} variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50">Hold</Button>
-                  <Button size="sm" variant="outline" onClick={() => toast({ title: 'Viewing details...' })}>View Details</Button>
-                </div>
-              )}
-            </Card>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderLeavePolicies = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {leavePolicies.map((policy, index) => (
-        <motion.div key={policy.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.1 }}>
-          <Card className="p-6 card-hover cursor-pointer" onClick={() => toast({ title: 'Editing policy...' })}>
-            <h3 className="font-semibold text-gray-900">{policy.name}</h3>
-            <p className="text-sm text-gray-500">Annual Allocation: {policy.allocation} days</p>
-          </Card>
-        </motion.div>
-      ))}
-    </div>
-  );
-
-  const renderLeaveBalances = () => (
-    <div className="space-y-4">
-      {leaveBalances.map((balance, index) => (
-        <motion.div key={balance.employee} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.1 }}>
-          <Card className="p-6">
-            <h3 className="font-semibold text-gray-900">{balance.employee}</h3>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <p>Annual: {balance.annual} days</p>
-              <p>Sick: {balance.sick} days</p>
-            </div>
-          </Card>
-        </motion.div>
-      ))}
-    </div>
-  );
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "leave-balances.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <>
-      <Helmet>
-        <title>Leave Management - HRMS Pro</title>
-        <meta name="description" content="Manage leave requests, policies, and employee leave balances with comprehensive leave management tools in HRMS Pro" />
-      </Helmet>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Leave Management</h2>
+          <p className="text-muted-foreground">
+            Manage all employee leave requests and balances
+          </p>
+        </div>
+      </div>
 
-      <Dialog open={isApplyLeaveOpen} onOpenChange={setApplyLeaveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Apply for Leave</DialogTitle>
-            <DialogDescription>Fill in the details for your leave request.</DialogDescription>
-          </DialogHeader>
-          <ApplyLeaveForm onSave={handleApplyLeave} onCancel={() => setApplyLeaveOpen(false)} />
-        </DialogContent>
-      </Dialog>
+      {/* Tabs for Admin/HR */}
+      <div className="border-b">
+        <div className="flex space-x-8">
+          <button
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "requests"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setActiveTab("requests")}
+          >
+            <FileText className="w-4 h-4 mr-2 inline" />
+            Leave Requests
+          </button>
+          <button
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "balances"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setActiveTab("balances")}
+          >
+            <TrendingDown className="w-4 h-4 mr-2 inline" />
+            Leave Balances
+          </button>
+        </div>
+      </div>
 
-      <div className="space-y-8">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Leave Management</h1>
-            <p className="text-gray-600 mt-2">Manage leave requests, policies, and employee balances</p>
-          </div>
-          <Button onClick={() => setApplyLeaveOpen(true)} className="mt-4 sm:mt-0 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-            <Plus className="w-4 h-4 mr-2" /> Apply Leave
-          </Button>
-        </motion.div>
+      {/* LEAVE REQUESTS TAB */}
+      {activeTab === "requests" && (
+        <>
+          {/* Filters and Search */}
+          <Card className="p-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by employee, type, or reason..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <Filter className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={loadLeaveRequests}
+                  disabled={loading}
+                >
+                  <RotateCcw
+                    className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
+                  />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+          </Card>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              {[
-                { id: 'requests', label: 'Leave Requests', icon: Clock },
-                ...(can('approve:leave') ? [
-                  { id: 'policies', label: 'Leave Policies', icon: CalendarDays },
-                  { id: 'balances', label: 'Leave Balances', icon: User }
-                ] : [])
-              ].map((tab) => {
-                const Icon = tab.icon;
+          {/* Leave Requests List */}
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-muted-foreground mt-2">
+                Loading leave requests...
+              </p>
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <Card className="p-8 text-center">
+              <CalendarDays className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">
+                No leave requests found
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm || statusFilter !== "all"
+                  ? "No requests match your filters"
+                  : "No leave requests have been submitted yet"}
+              </p>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {filteredRequests.map((request) => {
+                const LeaveTypeIcon = getLeaveTypeIcon(request.type);
+                const remainingDays = getRemainingDays(
+                  request.employeeId,
+                  request.type
+                );
+
                 return (
-                  <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                    <Icon className="w-4 h-4" />
-                    <span>{tab.label}</span>
-                  </button>
+                  <Card key={request._id || request.id} className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <LeaveTypeIcon className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold">{request.type}</h3>
+                            {getStatusBadge(request.status)}
+                            <Badge
+                              variant="outline"
+                              className="bg-blue-50 text-blue-700"
+                            >
+                              Balance: {remainingDays} days
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4" />
+                              <span>
+                                {new Date(
+                                  request.startDate
+                                ).toLocaleDateString()}{" "}
+                                -{" "}
+                                {new Date(request.endDate).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium">
+                                {request.days || 1}
+                              </span>{" "}
+                              day
+                              {request.days !== 1 ? "s" : ""}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4" />
+                              <span>
+                                {request.employee} ({request.employeeId})
+                              </span>
+                            </div>
+                            <div className="truncate" title={request.reason}>
+                              {request.reason}
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            Applied:{" "}
+                            {new Date(request.appliedDate).toLocaleDateString()}
+                            {request.approvedDate && (
+                              <span className="ml-4">
+                                Approved:{" "}
+                                {new Date(
+                                  request.approvedDate
+                                ).toLocaleDateString()}{" "}
+                                by {request.approvedBy}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {request.status === "pending" && (
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleStatusUpdate(
+                                request._id || request.id,
+                                "approved"
+                              )
+                            }
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleStatusUpdate(
+                                request._id || request.id,
+                                "rejected"
+                              )
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
                 );
               })}
-            </nav>
-          </div>
-        </motion.div>
+            </div>
+          )}
+        </>
+      )}
 
-        <motion.div key={activeTab} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          {activeTab === 'requests' && renderLeaveRequests()}
-          {activeTab === 'policies' && can('approve:leave') && renderLeavePolicies()}
-          {activeTab === 'balances' && can('approve:leave') && renderLeaveBalances()}
-        </motion.div>
-      </div>
-    </>
+      {/* LEAVE BALANCES TAB (Admin/HR only) */}
+      {activeTab === "balances" && (
+        <div className="space-y-6">
+          {/* Export Button */}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={exportBalancesToCSV}>
+              <Download className="w-4 h-4 mr-2" />
+              Export to CSV
+            </Button>
+          </div>
+
+          {/* Leave Balances Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Object.values(leaveBalances).map((balance) => (
+              <Card key={balance.employeeId} className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                      <Users className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{balance.employeeName}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {balance.employeeId} • {balance.employeeEmail}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Annual Leave</span>
+                      <span
+                        className={`font-bold ${getBalanceColor(
+                          balance.annualLeave
+                        )}`}
+                      >
+                        {balance.annualLeave}/6
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Sick Leave</span>
+                      <span
+                        className={`font-bold ${getBalanceColor(
+                          balance.sickLeave
+                        )}`}
+                      >
+                        {balance.sickLeave}/6
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">
+                        Personal Leave
+                      </span>
+                      <span
+                        className={`font-bold ${getBalanceColor(
+                          balance.personalLeave
+                        )}`}
+                      >
+                        {balance.personalLeave}/6
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
