@@ -29,6 +29,7 @@ import {
   Users,
   Ban,
   RotateCcw,
+  X,
 } from "lucide-react";
 
 const LeaveTab = () => {
@@ -39,11 +40,7 @@ const LeaveTab = () => {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [currentEmployeeId, setCurrentEmployeeId] = useState(null);
-  const [currentEmployeeBalance, setCurrentEmployeeBalance] = useState({
-    annualLeave: 6,
-    sickLeave: 6,
-    personalLeave: 6,
-  });
+  const [leaveBalance, setLeaveBalance] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -52,6 +49,44 @@ const LeaveTab = () => {
     endDate: "",
     reason: "",
   });
+
+  // Fetch leave balance from backend
+  const fetchLeaveBalance = async (employeeId) => {
+    try {
+      if (!employeeId) return;
+
+      const response = await fetch(
+        `http://localhost:5000/api/leaves/balance/${employeeId}`
+      );
+      if (response.ok) {
+        const balance = await response.json();
+        setLeaveBalance(balance);
+        console.log("Fetched leave balance:", balance);
+      } else {
+        console.error("Failed to fetch leave balance");
+        // Fallback to default balance
+        setLeaveBalance({
+          annualLeave: 6,
+          sickLeave: 6,
+          personalLeave: 6,
+          annualLeaveLimit: 6,
+          sickLeaveLimit: 6,
+          personalLeaveLimit: 6,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching leave balance:", error);
+      // Fallback to default balance
+      setLeaveBalance({
+        annualLeave: 6,
+        sickLeave: 6,
+        personalLeave: 6,
+        annualLeaveLimit: 6,
+        sickLeaveLimit: 6,
+        personalLeaveLimit: 6,
+      });
+    }
+  };
 
   // Check if a leave type is available (has remaining days)
   const isLeaveTypeAvailable = (type) => {
@@ -117,6 +152,9 @@ const LeaveTab = () => {
 
       setCurrentEmployeeId(employeeId);
 
+      // Fetch leave balance first
+      await fetchLeaveBalance(employeeId);
+
       if (leaveApi?.getLeavesByEmployee) {
         requests = await leaveApi.getLeavesByEmployee(employeeId);
       } else {
@@ -138,9 +176,6 @@ const LeaveTab = () => {
 
       console.log("Loaded leave requests:", requests);
       setLeaveRequests(Array.isArray(requests) ? requests : []);
-
-      // Calculate balance immediately after loading requests
-      calculateBalanceFromApprovedRequests(requests, employeeId);
     } catch (error) {
       console.error("Error loading leave requests:", error);
       toast({
@@ -153,46 +188,47 @@ const LeaveTab = () => {
     }
   };
 
-  // Calculate balance from approved leave requests (EXACTLY LIKE LeaveSection.jsx)
-  const calculateBalanceFromApprovedRequests = (
-    requests = leaveRequests,
-    employeeId = currentEmployeeId
-  ) => {
-    if (!employeeId) return;
+  // Get remaining days for current leave type
+  const getRemainingDays = (type) => {
+    if (!leaveBalance) return 0;
 
-    // Start with default balances (same as LeaveSection.jsx)
-    const balance = {
-      annualLeave: 6,
-      sickLeave: 6,
-      personalLeave: 6,
+    const balanceMap = {
+      "Annual Leave": leaveBalance.annualLeave,
+      "Sick Leave": leaveBalance.sickLeave,
+      "Personal Leave": leaveBalance.personalLeave,
     };
 
-    console.log("Calculating balance for employee:", employeeId);
-    console.log("All leave requests for calculation:", requests);
+    return balanceMap[type] || 0;
+  };
 
-    // Deduct only approved leaves (EXACT SAME LOGIC AS LeaveSection.jsx)
-    requests.forEach((request) => {
-      if (request.status === "approved" && request.employeeId === employeeId) {
-        const fieldMap = {
-          "Annual Leave": "annualLeave",
-          "Sick Leave": "sickLeave",
-          "Personal Leave": "personalLeave",
-        };
+  // Get limit for current leave type
+  const getLeaveLimit = (type) => {
+    if (!leaveBalance) return 6;
 
-        const field = fieldMap[request.type];
-        // Only deduct from paid leave types (same as LeaveSection.jsx)
-        if (field) {
-          const days = request.days || 1;
-          console.log(
-            `Deducting ${days} days from ${field} for ${request.type}`
-          );
-          balance[field] = Math.max(0, balance[field] - days);
-        }
-      }
-    });
+    const limitMap = {
+      "Annual Leave": leaveBalance.annualLeaveLimit || 6,
+      "Sick Leave": leaveBalance.sickLeaveLimit || 6,
+      "Personal Leave": leaveBalance.personalLeaveLimit || 6,
+    };
 
-    console.log("Final calculated balance:", balance);
-    setCurrentEmployeeBalance(balance);
+    return limitMap[type] || 6;
+  };
+
+  // Get balance color based on remaining days
+  const getBalanceColor = (current, limit) => {
+    const percentage = (current / limit) * 100;
+    if (percentage <= 25) return "text-red-600";
+    if (percentage <= 50) return "text-yellow-600";
+    return "text-green-600";
+  };
+
+  // Calculate days between dates
+  const calculateDays = (startDate, endDate) => {
+    if (!startDate || !endDate) return 0;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const timeDiff = end.getTime() - start.getTime();
+    return Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
   };
 
   // Load data on component mount
@@ -201,16 +237,6 @@ const LeaveTab = () => {
       loadLeaveRequests();
     }
   }, [user]);
-
-  // Update balance whenever leaveRequests or currentEmployeeId changes
-  useEffect(() => {
-    if (leaveRequests.length > 0 && currentEmployeeId) {
-      console.log(
-        "Recalculating balance due to leaveRequests or employeeId change"
-      );
-      calculateBalanceFromApprovedRequests(leaveRequests, currentEmployeeId);
-    }
-  }, [leaveRequests, currentEmployeeId]);
 
   const getStatusBadge = (status) => {
     const variants = {
@@ -258,7 +284,6 @@ const LeaveTab = () => {
       });
 
       loadLeaveRequests(); // Refresh the list
-      // Balance will automatically update via useEffect
     } catch (error) {
       console.error("Error canceling leave:", error);
       toast({
@@ -305,10 +330,21 @@ const LeaveTab = () => {
       return;
     }
 
+    // Check if dates are in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (startDate < today) {
+      toast({
+        title: "Error",
+        description: "Cannot apply for leave in the past",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check if there are enough leave days for paid leaves
     const remainingDays = getRemainingDays(formData.type);
-    const requestedDays =
-      Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    const requestedDays = calculateDays(formData.startDate, formData.endDate);
 
     if (requestedDays > remainingDays) {
       toast({
@@ -345,10 +381,7 @@ const LeaveTab = () => {
         return;
       }
 
-      // Calculate the number of days
-      const start = new Date(formData.startDate);
-      const end = new Date(formData.endDate);
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      const days = calculateDays(formData.startDate, formData.endDate);
 
       const leaveData = {
         type: formData.type,
@@ -387,7 +420,6 @@ const LeaveTab = () => {
       });
 
       loadLeaveRequests(); // Refresh the list
-      // Balance will automatically update via useEffect when requests are loaded
     } catch (error) {
       console.error("Error creating leave request:", error);
       toast({
@@ -399,24 +431,6 @@ const LeaveTab = () => {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // Get remaining days for current leave type
-  const getRemainingDays = (type) => {
-    const balanceMap = {
-      "Annual Leave": currentEmployeeBalance.annualLeave,
-      "Sick Leave": currentEmployeeBalance.sickLeave,
-      "Personal Leave": currentEmployeeBalance.personalLeave,
-    };
-
-    return balanceMap[type] || 0;
-  };
-
-  // Get balance color based on remaining days (same as LeaveSection.jsx)
-  const getBalanceColor = (days) => {
-    if (days >= 4) return "text-green-600";
-    if (days >= 2) return "text-yellow-600";
-    return "text-red-600";
   };
 
   // Handle leave type change in form
@@ -436,6 +450,7 @@ const LeaveTab = () => {
   }
 
   const availableLeaveTypes = getAvailableLeaveTypes();
+  const requestedDays = calculateDays(formData.startDate, formData.endDate);
 
   return (
     <div className="space-y-6">
@@ -466,7 +481,7 @@ const LeaveTab = () => {
       </div>
 
       {/* Employee Leave Balance Card */}
-      {currentEmployeeBalance && (
+      {leaveBalance && (
         <Card className="p-6 bg-blue-50 border-blue-200">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <TrendingDown className="w-5 h-5 text-blue-600" />
@@ -476,14 +491,17 @@ const LeaveTab = () => {
             <div className="text-center p-3 bg-white rounded-lg border">
               <div
                 className={`text-2xl font-bold ${getBalanceColor(
-                  currentEmployeeBalance.annualLeave
+                  leaveBalance.annualLeave,
+                  leaveBalance.annualLeaveLimit || 6
                 )}`}
               >
-                {currentEmployeeBalance.annualLeave}
+                {leaveBalance.annualLeave}
               </div>
               <div className="text-sm text-muted-foreground">Annual Leave</div>
-              <div className="text-xs text-gray-500">/ 6 days</div>
-              {currentEmployeeBalance.annualLeave === 0 && (
+              <div className="text-xs text-gray-500">
+                / {leaveBalance.annualLeaveLimit || 6} days
+              </div>
+              {leaveBalance.annualLeave === 0 && (
                 <div className="text-xs text-red-500 font-medium mt-1 flex items-center justify-center gap-1">
                   <Ban className="w-3 h-3" />
                   Not Available
@@ -493,14 +511,17 @@ const LeaveTab = () => {
             <div className="text-center p-3 bg-white rounded-lg border">
               <div
                 className={`text-2xl font-bold ${getBalanceColor(
-                  currentEmployeeBalance.sickLeave
+                  leaveBalance.sickLeave,
+                  leaveBalance.sickLeaveLimit || 6
                 )}`}
               >
-                {currentEmployeeBalance.sickLeave}
+                {leaveBalance.sickLeave}
               </div>
               <div className="text-sm text-muted-foreground">Sick Leave</div>
-              <div className="text-xs text-gray-500">/ 6 days</div>
-              {currentEmployeeBalance.sickLeave === 0 && (
+              <div className="text-xs text-gray-500">
+                / {leaveBalance.sickLeaveLimit || 6} days
+              </div>
+              {leaveBalance.sickLeave === 0 && (
                 <div className="text-xs text-red-500 font-medium mt-1 flex items-center justify-center gap-1">
                   <Ban className="w-3 h-3" />
                   Not Available
@@ -510,16 +531,19 @@ const LeaveTab = () => {
             <div className="text-center p-3 bg-white rounded-lg border">
               <div
                 className={`text-2xl font-bold ${getBalanceColor(
-                  currentEmployeeBalance.personalLeave
+                  leaveBalance.personalLeave,
+                  leaveBalance.personalLeaveLimit || 6
                 )}`}
               >
-                {currentEmployeeBalance.personalLeave}
+                {leaveBalance.personalLeave}
               </div>
               <div className="text-sm text-muted-foreground">
                 Personal Leave
               </div>
-              <div className="text-xs text-gray-500">/ 6 days</div>
-              {currentEmployeeBalance.personalLeave === 0 && (
+              <div className="text-xs text-gray-500">
+                / {leaveBalance.personalLeaveLimit || 6} days
+              </div>
+              {leaveBalance.personalLeave === 0 && (
                 <div className="text-xs text-red-500 font-medium mt-1 flex items-center justify-center gap-1">
                   <Ban className="w-3 h-3" />
                   Not Available
@@ -549,6 +573,7 @@ const LeaveTab = () => {
             {leaveRequests.map((request) => {
               const LeaveTypeIcon = getLeaveTypeIcon(request.type);
               const remainingDays = getRemainingDays(request.type);
+              const leaveLimit = getLeaveLimit(request.type);
 
               return (
                 <Card key={request._id || request.id} className="p-6">
@@ -575,7 +600,7 @@ const LeaveTab = () => {
                                 No Balance
                               </span>
                             ) : (
-                              `Balance: ${remainingDays} days`
+                              `Balance: ${remainingDays}/${leaveLimit} days`
                             )}
                           </Badge>
                         </div>
@@ -630,14 +655,23 @@ const LeaveTab = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-2xl">
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                Apply for Leave
-                {currentEmployeeId && (
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
-                    (Employee ID: {currentEmployeeId})
-                  </span>
-                )}
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">
+                  Apply for Leave
+                  {currentEmployeeId && (
+                    <span className="text-sm font-normal text-muted-foreground ml-2">
+                      (Employee ID: {currentEmployeeId})
+                    </span>
+                  )}
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowForm(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -695,13 +729,7 @@ const LeaveTab = () => {
                     <Label htmlFor="days">Duration</Label>
                     <div className="text-sm text-muted-foreground p-2 bg-muted rounded">
                       {formData.startDate && formData.endDate
-                        ? `${
-                            Math.ceil(
-                              (new Date(formData.endDate) -
-                                new Date(formData.startDate)) /
-                                (1000 * 60 * 60 * 24)
-                            ) + 1
-                          } days`
+                        ? `${requestedDays} days`
                         : "Select dates to calculate duration"}
                     </div>
                   </div>
@@ -719,6 +747,7 @@ const LeaveTab = () => {
                       }
                       required
                       disabled={!isLeaveTypeAvailable(formData.type)}
+                      min={new Date().toISOString().split("T")[0]}
                     />
                   </div>
                   <div className="space-y-2">
@@ -732,6 +761,10 @@ const LeaveTab = () => {
                       }
                       required
                       disabled={!isLeaveTypeAvailable(formData.type)}
+                      min={
+                        formData.startDate ||
+                        new Date().toISOString().split("T")[0]
+                      }
                     />
                   </div>
                 </div>
@@ -749,6 +782,9 @@ const LeaveTab = () => {
                     rows={3}
                     disabled={!isLeaveTypeAvailable(formData.type)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {formData.reason.length}/10 characters minimum
+                  </p>
                 </div>
 
                 {/* Leave Balance Preview */}
@@ -766,7 +802,8 @@ const LeaveTab = () => {
                           <TrendingDown className="w-4 h-4 text-blue-600" />
                           <span className="font-medium text-blue-800">
                             Current {formData.type} Balance:{" "}
-                            {getRemainingDays(formData.type)} days
+                            {getRemainingDays(formData.type)}/
+                            {getLeaveLimit(formData.type)} days
                           </span>
                         </>
                       ) : (
@@ -782,21 +819,9 @@ const LeaveTab = () => {
                       formData.endDate &&
                       isLeaveTypeAvailable(formData.type) && (
                         <div className="mt-2 text-sm text-blue-700">
-                          Requested:{" "}
-                          {Math.ceil(
-                            (new Date(formData.endDate) -
-                              new Date(formData.startDate)) /
-                              (1000 * 60 * 60 * 24)
-                          ) + 1}{" "}
-                          days | Remaining after approval:{" "}
-                          {getRemainingDays(formData.type) -
-                            (Math.ceil(
-                              (new Date(formData.endDate) -
-                                new Date(formData.startDate)) /
-                                (1000 * 60 * 60 * 24)
-                            ) +
-                              1)}{" "}
-                          days
+                          Requested: {requestedDays} days | Remaining after
+                          approval:{" "}
+                          {getRemainingDays(formData.type) - requestedDays} days
                         </div>
                       )}
                   </div>

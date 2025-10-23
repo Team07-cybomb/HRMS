@@ -52,6 +52,14 @@ export const AppProvider = ({ children }) => {
     []
   );
   const [hrRequests, setHrRequests] = useLocalStorage("hrms_hr_requests", []);
+  const [leaveSettings, setLeaveSettings] = useLocalStorage(
+    "hrms_leave_settings",
+    {
+      annualLeaveLimit: 6,
+      sickLeaveLimit: 6,
+      personalLeaveLimit: 6,
+    }
+  );
 
   const logAction = (action, details = {}, before = null, after = null) => {
     const newLog = {
@@ -69,17 +77,137 @@ export const AppProvider = ({ children }) => {
     setAuditLogs((prevLogs) => [newLog, ...prevLogs]);
   };
 
-  // Empty notification functions to maintain compatibility
-  const addNotification = (notification) => {
-    // Do nothing - notification system disabled
+  // Real notification API functions
+  const notificationApi = {
+    get: async (employeeId) => {
+      try {
+        console.log("🔄 Fetching notifications for employee:", employeeId);
+        const response = await fetch(
+          `${API_BASE_URL}/notifications/${employeeId}`
+        );
+
+        if (!response.ok) {
+          console.error(
+            "❌ API response not OK:",
+            response.status,
+            response.statusText
+          );
+          return [];
+        }
+
+        const data = await response.json();
+        console.log("📦 Full backend response:", data);
+
+        // CORRECTED: Extract notifications array from response
+        const notifications = data.notifications || [];
+        console.log(
+          "✅ Extracted notifications:",
+          notifications.length,
+          "items"
+        );
+
+        return notifications;
+      } catch (error) {
+        console.error("❌ Error fetching notifications:", error);
+        return [];
+      }
+    },
+
+    markAsRead: async (notificationId) => {
+      try {
+        console.log("📝 Marking notification as read:", notificationId);
+        const response = await fetch(
+          `${API_BASE_URL}/notifications/${notificationId}/read`,
+          {
+            method: "PATCH",
+          }
+        );
+        return response.ok;
+      } catch (error) {
+        console.error("❌ Error marking notification as read:", error);
+        return false;
+      }
+    },
+
+    markAllAsRead: async (employeeId) => {
+      try {
+        console.log("📝 Marking all notifications as read for:", employeeId);
+        const response = await fetch(
+          `${API_BASE_URL}/notifications/${employeeId}/read-all`,
+          {
+            method: "PATCH",
+          }
+        );
+        return response.ok;
+      } catch (error) {
+        console.error("❌ Error marking all notifications as read:", error);
+        return false;
+      }
+    },
+
+    getUnreadCount: async (employeeId) => {
+      try {
+        console.log("🔢 Getting unread count for:", employeeId);
+        const response = await fetch(
+          `${API_BASE_URL}/notifications/${employeeId}/unread-count`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          return data.count || 0;
+        }
+        return 0;
+      } catch (error) {
+        console.error("❌ Error getting unread count:", error);
+        return 0;
+      }
+    },
   };
 
-  const markAsRead = (id) => {
-    // Do nothing - notification system disabled
-  };
+  // Leave Settings API
+  const leaveSettingsApi = {
+    get: async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/leaves/settings`);
+        if (response.ok) {
+          const settings = await response.json();
+          setLeaveSettings(settings);
+          return settings;
+        } else {
+          console.error("Failed to fetch leave settings");
+          return leaveSettings;
+        }
+      } catch (error) {
+        console.error("Error fetching leave settings:", error);
+        return leaveSettings;
+      }
+    },
 
-  const markAllAsRead = () => {
-    // Do nothing - notification system disabled
+    update: async (newSettings) => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/leaves/settings`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...newSettings,
+            updatedBy: user?.name || "Admin",
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setLeaveSettings(result.settings);
+
+          return result.settings;
+        } else {
+          throw new Error("Failed to update leave settings");
+        }
+      } catch (error) {
+        console.error("Error updating leave settings:", error);
+        throw error;
+      }
+    },
   };
 
   // Enhanced API functions for leave requests with better error handling
@@ -437,6 +565,7 @@ export const AppProvider = ({ children }) => {
     roles: crudOperations(roles, setRoles, "Role"),
     shifts: crudOperations(shifts, setShifts, "Shift"),
     leaveRequests: leaveApi,
+    leaveSettings: leaveSettingsApi,
     policies: crudOperations(policies, setPolicies, "Company Policy"),
     hrRequests: crudOperations(hrRequests, setHrRequests, "HR Request"),
     companyHolidays: {
@@ -453,11 +582,8 @@ export const AppProvider = ({ children }) => {
         });
       },
     },
-    // Keep notifications in context but with empty functionality
-    notifications: [], // Empty array to prevent filter errors
-    addNotification,
-    markAsRead,
-    markAllAsRead,
+    // Real notification API
+    notifications: notificationApi,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
