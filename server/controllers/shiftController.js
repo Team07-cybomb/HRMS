@@ -124,16 +124,24 @@ const deleteShift = async (req, res) => {
 
 
 
-// Update the assignShiftToEmployee function
+// In shiftController.js - CORRECTED VERSION
 const assignShiftToEmployee = async (req, res) => {
   try {
     const {
-      employeeId,
-      shiftId,
-      effectiveDate
+      employeeId, // This is EMP003 format (string)
+      employeeName, // Employee name from frontend
+      shiftId, // This is MongoDB ObjectId (string)
+      effectiveDate,
+      endDate
     } = req.body;
 
-    console.log('Assign shift request received:', { employeeId, shiftId, effectiveDate });
+    console.log('Assign shift request received:', { 
+      employeeId, 
+      employeeName, 
+      shiftId, 
+      effectiveDate, 
+      endDate 
+    });
 
     // Validate required fields
     if (!employeeId || !shiftId || !effectiveDate) {
@@ -142,34 +150,39 @@ const assignShiftToEmployee = async (req, res) => {
       });
     }
 
-    // ✅ Convert string ID to ObjectId for proper querying
-    let employeeObjectId, shiftObjectId;
-    try {
-      employeeObjectId = new mongoose.Types.ObjectId(employeeId);
-      shiftObjectId = new mongoose.Types.ObjectId(shiftId);
-    } catch (error) {
-      return res.status(400).json({ 
-        message: 'Invalid ID format provided' 
+    // Validate dates
+    if (endDate && new Date(endDate) <= new Date(effectiveDate)) {
+      return res.status(400).json({
+        message: 'End date must be after effective date'
       });
     }
 
-    // ✅ Check if employee exists in Employee collection (not User)
+    // ✅ Validate shiftId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(shiftId)) {
+      return res.status(400).json({ 
+        message: 'Invalid shift ID format' 
+      });
+    }
+
+    const shiftObjectId = new mongoose.Types.ObjectId(shiftId);
+
+    // ✅ Check if employee exists in Employee collection using employeeId (EMP003)
     const employee = await Employee.findOne({ 
-      _id: employeeObjectId,
+      employeeId: employeeId, // Search by employeeId field (EMP003)
       status: 'active'
     });
 
     if (!employee) {
-      console.log('Employee not found in Employee collection with ID:', employeeId);
+      console.log('Employee not found with employeeId:', employeeId);
       
       // Debug: Check what employees exist
-      const allEmployees = await Employee.find({}).select('_id name email status').limit(5);
+      const allEmployees = await Employee.find({}).select('_id name email employeeId status').limit(5);
       console.log('Available employees:', allEmployees);
       
       return res.status(404).json({ 
         message: 'Employee not found in employee database',
         availableEmployees: allEmployees,
-        searchedId: employeeId
+        searchedEmployeeId: employeeId
       });
     }
 
@@ -186,10 +199,10 @@ const assignShiftToEmployee = async (req, res) => {
       });
     }
 
-    // Deactivate any current active assignment
+    // Deactivate any current active assignment for this employee
     await EmployeeShift.updateMany(
       { 
-        employeeId: employeeObjectId, 
+        employeeId: employeeId, // Use employeeId (EMP003)
         isActive: true 
       },
       { 
@@ -199,38 +212,41 @@ const assignShiftToEmployee = async (req, res) => {
       }
     );
 
-    // Create new assignment
-    const employeeShift = new EmployeeShift({
-      employeeId: employeeObjectId,
-      employeeName: employee.name,
-      shiftId: shiftObjectId,
-      shiftName: shift.name,
-      effectiveDate: new Date(effectiveDate),
-      assignedBy: req.user.id,
-      assignedByName: req.user.name || 'System Admin',
-      teamId: employee.teamId || 1
-    });
+// In shiftController.js - Update the assignment creation part
+// Create new assignment with all required data
+const employeeShift = new EmployeeShift({
+  employeeId: employeeId, // Store as EMP003 string
+  employeeName: employeeName || employee.name, // Ensure name is set
+  shiftId: shiftObjectId,
+  shiftName: shift.name, // Ensure shift name is set
+  effectiveDate: new Date(effectiveDate),
+  endDate: endDate ? new Date(endDate) : null,
+  assignedBy: req.user?.id || 'system',
+  assignedByName: req.user?.name || 'System Admin',
+  teamId: employee.teamId || 1
+});
 
-    await employeeShift.save();
+await employeeShift.save();
+console.log('Shift assignment saved with data:', {
+  employeeId: employeeShift.employeeId,
+  employeeName: employeeShift.employeeName,
+  shiftName: employeeShift.shiftName,
+  effectiveDate: employeeShift.effectiveDate
+});
 
-    console.log('Shift assigned successfully to:', employee.name);
-
-    // Populate the response for better frontend display
-    const populatedAssignment = await EmployeeShift.findById(employeeShift._id)
-      .populate('employeeId', 'name email')
-      .populate('shiftId', 'name startTime endTime');
-
+    // Return the assignment without population for now
     res.status(201).json({
       message: 'Shift assigned successfully',
       assignment: {
-        _id: populatedAssignment._id,
-        employeeId: populatedAssignment.employeeId._id,
-        employeeName: populatedAssignment.employeeId.name,
-        shiftId: populatedAssignment.shiftId._id,
-        shiftName: populatedAssignment.shiftId.name,
-        effectiveDate: populatedAssignment.effectiveDate,
-        isActive: populatedAssignment.isActive,
-        assignedByName: populatedAssignment.assignedByName
+        _id: employeeShift._id,
+        employeeId: employeeShift.employeeId,
+        employeeName: employeeShift.employeeName,
+        shiftId: employeeShift.shiftId,
+        shiftName: employeeShift.shiftName,
+        effectiveDate: employeeShift.effectiveDate,
+        endDate: employeeShift.endDate,
+        isActive: employeeShift.isActive,
+        // assignedByName: employeeShift.assignedByName
       }
     });
   } catch (error) {
@@ -250,59 +266,152 @@ const assignShiftToEmployee = async (req, res) => {
   }
 };
 
-// Get employee shift assignments
+// In shiftController.js - Update getEmployeeAssignments to ensure proper data
 const getEmployeeAssignments = async (req, res) => {
   try {
     const { employeeId, activeOnly = 'true' } = req.query;
     
     let filter = {};
     if (employeeId) {
-      try {
-        filter.employeeId = new mongoose.Types.ObjectId(employeeId);
-      } catch (error) {
-        return res.status(400).json({ message: 'Invalid employee ID format' });
-      }
+      filter.employeeId = employeeId;
     }
     if (activeOnly === 'true') filter.isActive = true;
 
+    console.log('Fetching employee assignments with filter:', filter);
+
     const assignments = await EmployeeShift.find(filter)
-      .populate('employeeId', 'name email department') // Populate from Employee model
       .populate('shiftId', 'name startTime endTime')
       .sort({ effectiveDate: -1 });
 
-    res.json(assignments);
+    console.log(`Found ${assignments.length} assignments`);
+
+    // Ensure we have proper employee names even if population fails
+    const assignmentsWithFallback = await Promise.all(
+      assignments.map(async (assignment) => {
+        // If employeeName is missing, try to fetch it from Employee collection
+        if (!assignment.employeeName) {
+          try {
+            const employee = await Employee.findOne({ 
+              employeeId: assignment.employeeId 
+            }).select('name');
+            
+            if (employee) {
+              assignment.employeeName = employee.name;
+              // Optionally save the updated assignment
+              await assignment.save();
+            }
+          } catch (error) {
+            console.error('Error fetching employee name:', error);
+          }
+        }
+        
+        return assignment;
+      })
+    );
+
+    res.json(assignmentsWithFallback);
   } catch (error) {
     console.error('Get employee assignments error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// Update employee assignment
+// In shiftController.js - Update the updateEmployeeAssignment function
 const updateEmployeeAssignment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { endDate, isActive } = req.body;
+    const { shiftId, effectiveDate, endDate, isActive } = req.body;
 
-    const assignment = await EmployeeShift.findByIdAndUpdate(
-      id,
-      { endDate, isActive, updatedAt: Date.now() },
-      { new: true }
-    ).populate('shiftId');
+    console.log('Update assignment request:', { id, shiftId, effectiveDate, endDate, isActive });
 
-    if (!assignment) {
+    // Validate required fields
+    if (!shiftId || !effectiveDate) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: shiftId, effectiveDate' 
+      });
+    }
+
+    // Validate dates
+    if (endDate && new Date(endDate) <= new Date(effectiveDate)) {
+      return res.status(400).json({
+        message: 'End date must be after effective date'
+      });
+    }
+
+    // Convert shiftId to ObjectId
+    let shiftObjectId;
+    try {
+      shiftObjectId = new mongoose.Types.ObjectId(shiftId);
+    } catch (error) {
+      return res.status(400).json({ 
+        message: 'Invalid shift ID format' 
+      });
+    }
+
+    // Check if shift exists and is active
+    const shift = await Shift.findOne({ 
+      _id: shiftObjectId,
+      isActive: true 
+    });
+
+    if (!shift) {
+      return res.status(404).json({ 
+        message: 'Active shift not found' 
+      });
+    }
+
+    // Find the current assignment
+    const currentAssignment = await EmployeeShift.findById(id);
+
+    if (!currentAssignment) {
       return res.status(404).json({ message: 'Assignment not found' });
     }
 
+    console.log('Current assignment employeeId:', currentAssignment.employeeId);
+
+    // Update the assignment with new data
+    const updatedAssignment = await EmployeeShift.findByIdAndUpdate(
+      id,
+      { 
+        shiftId: shiftObjectId,
+        shiftName: shift.name,
+        effectiveDate: new Date(effectiveDate),
+        endDate: endDate ? new Date(endDate) : null,
+        isActive: isActive !== undefined ? isActive : currentAssignment.isActive,
+        updatedAt: Date.now()
+      },
+      { new: true, runValidators: true }
+    );
+
+    console.log('Assignment updated successfully:', updatedAssignment._id);
+
     res.json({
       message: 'Assignment updated successfully',
-      assignment
+      assignment: {
+        _id: updatedAssignment._id,
+        employeeId: updatedAssignment.employeeId,
+        employeeName: updatedAssignment.employeeName,
+        shiftId: updatedAssignment.shiftId,
+        shiftName: updatedAssignment.shiftName,
+        effectiveDate: updatedAssignment.effectiveDate,
+        endDate: updatedAssignment.endDate,
+        isActive: updatedAssignment.isActive
+      }
     });
   } catch (error) {
     console.error('Update assignment error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        message: 'Invalid ID format provided' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server error during assignment update',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
-
 module.exports = {
   createShift,
   getShifts,

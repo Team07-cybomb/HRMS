@@ -20,11 +20,10 @@ const {
     updateManualRequest,
   rejectManualRequest
 } = require('../controllers/manualRequestController');
-const { authMiddleware } = require('../middleware/authMiddleware');
 
 
 const router = express.Router();
-router.use(authMiddleware);
+
 // Attendance routes
 router.post('/checkin', checkIn);
 router.post('/checkout', checkOut);

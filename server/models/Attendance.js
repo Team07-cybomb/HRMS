@@ -1,7 +1,12 @@
+// models/Attendance.js
 const mongoose = require('mongoose');
 
 const attendanceSchema = new mongoose.Schema({
-  employeeId: { type: String, required: true },
+  employeeId: { 
+    type: String,  // Change to String to store EMP003
+    required: true,
+    ref: 'Employee'
+  },
   employee: { type: String, required: true },
   date: { type: Date, required: true },
   checkIn: { type: String },
@@ -18,8 +23,8 @@ const attendanceSchema = new mongoose.Schema({
     address: String,
     accuracy: Number
   },
-  checkInPhoto: { type: String }, // Base64 encoded image or file path
-  checkOutPhoto: { type: String }, // Base64 encoded image or file path
+  checkInPhoto: { type: String },
+  checkOutPhoto: { type: String },
   status: { 
     type: String, 
     enum: ['present', 'absent', 'late', 'half-day'],
@@ -29,7 +34,27 @@ const attendanceSchema = new mongoose.Schema({
   location: { type: String, default: 'Office' },
   duration: { type: String, default: '0h 0m' },
   teamId: { type: Number, required: true },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+    isLate: {
+    type: Boolean,
+    default: false
+  },
+  lateMinutes: {
+    type: Number,
+    default: 0
+  },
+  workingMinutes: {
+    type: Number,
+    default: 0
+  },
+  totalMinutes: {
+    type: Number,
+    default: 0
+  },
+  breakDuration: {
+    type: Number,
+    default: 60 // minutes
+  }
 });
 
 // Compound index to ensure one attendance record per employee per day

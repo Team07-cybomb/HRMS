@@ -12,7 +12,6 @@ exports.getEmployees = async (req, res) => {
   }
 };
 
-// ADD new employee
 exports.addEmployee = async (req, res) => {
   try {
     const { 
@@ -31,22 +30,49 @@ exports.addEmployee = async (req, res) => {
       password 
     } = req.body;
 
-    // Check if employee already exists in either collection
-    const existingEmployee = await Employee.findOne({ $or: [{ email }, { employeeId }] });
-    const existingUser = await User.findOne({ email });
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmployeeId = employeeId.trim();
+
+    // Check for duplicates with more specific queries
+    const [existingEmployeeByEmail, existingEmployeeById, existingUser] = await Promise.all([
+      Employee.findOne({ email: normalizedEmail }),
+      Employee.findOne({ employeeId: normalizedEmployeeId }),
+      User.findOne({ email: normalizedEmail })
+    ]);
+
+    // Detailed error messages
+    if (existingEmployeeByEmail) {
+      return res.status(400).json({ 
+        error: 'Employee already exists',
+        details: `Email ${normalizedEmail} is already registered`,
+        field: 'email'
+      });
+    }
     
-    if (existingEmployee || existingUser) {
-      return res.status(400).json({ error: 'Employee already exists' });
+    if (existingEmployeeById) {
+      return res.status(400).json({ 
+        error: 'Employee already exists', 
+        details: `Employee ID ${normalizedEmployeeId} is already in use`,
+        field: 'employeeId'
+      });
     }
 
-    // Use the provided password or default
+    if (existingUser) {
+      return res.status(400).json({ 
+        error: 'User already exists',
+        details: `User account with email ${normalizedEmail} already exists`,
+        field: 'email'
+      });
+    }
+
+    // Rest of your creation logic...
     const employeePassword = password || "Password123";
     
-    // Create employee record WITHOUT password hashing
     const newEmployee = new Employee({ 
-      employeeId, 
+      employeeId: normalizedEmployeeId, 
       name, 
-      email, 
+      email: normalizedEmail, 
       department, 
       designation,
       role,
@@ -56,33 +82,29 @@ exports.addEmployee = async (req, res) => {
       location,
       dateOfJoining,
       totalExperience
-      // Don't store password in Employee collection for authentication
     });
+    
     await newEmployee.save();
 
-    // Create user account - User model will automatically hash the password
     const newUser = new User({ 
-      email, 
-      password: employeePassword, // Pass plain password - User schema will hash it
+      email: normalizedEmail, 
+      password: employeePassword,
       role: 'employee', 
-      employeeId: employeeId
+      employeeId: normalizedEmployeeId
     });
+    
     await newUser.save();
-
-    console.log('Employee created with ID:', newEmployee.employeeId);
-    console.log('User created for email:', newUser.email);
 
     res.status(201).json({ 
       employee: newEmployee,
       tempPassword: !password ? employeePassword : undefined,
-      message: `Employee ${name} created successfully. Login email: ${email}`
+      message: `Employee ${name} created successfully. Login email: ${normalizedEmail}`
     });
   } catch (err) {
     console.error('Error adding employee:', err);
     res.status(500).json({ error: err.message });
   }
 };
-
 // DELETE employee
 exports.deleteEmployee = async (req, res) => {
   try {

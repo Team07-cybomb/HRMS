@@ -23,55 +23,69 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // In AuthContext.jsx - Update the login function
-  const login = async (email, password) => {
-    try {
-      const res = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+// In AuthContext.jsx - Enhanced login function with better employeeId handling
+const login = async (email, password) => {
+  try {
+    const res = await fetch("http://localhost:5000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!res.ok) throw new Error(data.message || "Login failed");
+    if (!res.ok) throw new Error(data.message || "Login failed");
 
-      // Enhanced user data with required properties
-      const userData = {
-        id: data._id || data.id,
-        _id: data._id,
-        email: data.email,
-        role: data.role,
-        name: data.name || email.split("@")[0], // Fallback name
-        teamId: data.teamId || 1, // Default team ID
-        teamIds: data.teamIds || [data.teamId || 1], // Array of team IDs
-      };
+    console.log('Login response data:', data); // Debug log
 
-      const token = data.token;
+    // Enhanced user data with robust employeeId handling
+    const userData = {
+      id: data._id || data.id,
+      _id: data._id,
+      email: data.email,
+      role: data.role,
+      name: data.name || email.split("@")[0],
+      teamId: data.teamId || 1,
+      teamIds: data.teamIds || [data.teamId || 1],
+      // CRITICAL FIX: Multiple fallbacks for employeeId
+      employeeId: data.employeeId || data.empId || data.employeeID || data._id,
+    };
 
-      if (userData && token) {
-        setUser(userData);
-        localStorage.setItem("hrms_user", JSON.stringify(userData));
-        localStorage.setItem("hrms_token", token);
+    const token = data.token;
 
-        toast({
-          title: "Welcome back!",
-          description: `Successfully logged in as ${userData.role}.`,
-        });
-
-        return { success: true };
-      } else {
-        throw new Error("Invalid response from server");
+    if (userData && token) {
+      // Validate that we have an employeeId
+      if (!userData.employeeId) {
+        console.error('No employeeId found in login response:', data);
+        throw new Error('Employee ID not found in login response');
       }
-    } catch (error) {
+
+      setUser(userData);
+      localStorage.setItem("hrms_user", JSON.stringify(userData));
+      localStorage.setItem("hrms_token", token);
+
+      console.log('User data after login:', userData);
+      console.log('Employee ID:', userData.employeeId);
+
       toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive",
+        title: "Welcome back!",
+        description: `Successfully logged in as ${userData.role}.`,
       });
-      return { success: false, error: error.message };
+
+      return { success: true };
+    } else {
+      throw new Error("Invalid response from server");
     }
-  };
+  } catch (error) {
+    console.error('Login error:', error);
+    toast({
+      title: "Login failed",
+      description: error.message,
+      variant: "destructive",
+    });
+    return { success: false, error: error.message };
+  }
+};
 
   // Logout function
   const logout = () => {

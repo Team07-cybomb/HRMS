@@ -64,15 +64,25 @@ export const useAttendance = () => {
     }
   }, []);
 
-  const getTodayAttendance = useCallback(async (employeeId) => {
-    try {
-      const response = await attendanceApi.getTodayAttendance(employeeId);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching today attendance:', error);
-      throw error;
+// In useAttendance.js - ensure getTodayAttendance is properly implemented
+const getTodayAttendance = useCallback(async (employeeId) => {
+  try {
+    console.log('Calling getTodayAttendance for:', employeeId);
+    const response = await attendanceApi.getTodayAttendance(employeeId);
+    console.log('getTodayAttendance response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error in getTodayAttendance:', error);
+    
+    // Don't throw error for 404 - it just means no record exists
+    if (error.response?.status === 404) {
+      console.log('No attendance record found (404)');
+      return null;
     }
-  }, []);
+    
+    throw error;
+  }
+}, []);
 
   return {
     attendance,
