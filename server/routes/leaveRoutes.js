@@ -10,7 +10,9 @@ const {
   getLeaveBalance,
   resetAllLeaveBalances,
   getAllLeaveBalances,
-  getEmployeeIdByEmail, // Add this import
+  getEmployeeIdByEmail,
+  getLeaveSettings,
+  updateLeaveSettings,
 } = require("../controllers/leaveController");
 
 // Get all leave requests
@@ -30,6 +32,12 @@ router.get("/approver/:approverId", getPendingLeavesForApprover);
 
 // Get leave balance for employee
 router.get("/balance/:employeeId", getLeaveBalance);
+
+// Get leave settings
+router.get("/settings", getLeaveSettings);
+
+// Update leave settings
+router.put("/settings", updateLeaveSettings);
 
 // Create new leave request
 router.post("/", createLeave);

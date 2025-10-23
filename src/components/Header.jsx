@@ -1,12 +1,11 @@
-
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTenant } from '@/contexts/TenantContext';
-import { useTheme } from '@/contexts/ThemeProvider';
-import { useAppContext } from '@/contexts/AppContext';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
+import { useTheme } from "@/contexts/ThemeProvider";
+import { useAppContext } from "@/contexts/AppContext";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,8 +17,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuPortal,
-} from '@/components/ui/dropdown-menu';
-import { toast } from '@/components/ui/use-toast';
+} from "@/components/ui/dropdown-menu";
+import { toast } from "@/components/ui/use-toast";
 import {
   Menu,
   Bell,
@@ -39,16 +38,187 @@ import {
   Mail,
   MailOpen,
   Building2,
-  BookOpen
-} from 'lucide-react';
+  BookOpen,
+  CheckCircle,
+  XCircle,
+  Calendar,
+} from "lucide-react";
 
 const Header = ({ onMenuClick }) => {
-  const { user, logout, impersonate, stopImpersonating, isImpersonating } = useAuth();
+  const { user, logout, impersonate, stopImpersonating, isImpersonating } =
+    useAuth();
   const { tenant } = useTenant();
   const { setTheme } = useTheme();
-  const { notifications, markAsRead, markAllAsRead } = useAppContext();
+  const { notifications } = useAppContext();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [notificationList, setNotificationList] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [currentEmployeeId, setCurrentEmployeeId] = useState(null);
+
+  // FIXED: Get current employee ID - HANDLES BOTH USER COLLECTION AND EMPLOYEE COLLECTION
+  const getCurrentEmployeeId = async () => {
+    console.log("🔍 CURRENT USER:", user);
+
+    if (!user?.email) {
+      console.error("❌ No user email found");
+      return null;
+    }
+
+    // For User collection admins (like admin@company.com) - USE _id
+    if (
+      user._id &&
+      ["admin", "hr", "manager", "employer"].includes(user.role)
+    ) {
+      console.log("✅ Using user._id for admin user:", user._id);
+      return user._id.toString();
+    }
+
+    // For Employee collection users - try to find by email
+    try {
+      const response = await fetch("http://localhost:5000/api/employees");
+      if (response.ok) {
+        const employees = await response.json();
+        const employee = employees.find((emp) => emp.email === user.email);
+
+        if (employee) {
+          console.log(
+            "✅ Found employee in Employee collection:",
+            employee.employeeId
+          );
+          return employee.employeeId;
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error fetching employees:", error);
+    }
+
+    // Final fallback
+    const fallbackId =
+      user?.employeeId || user?.id || user?._id?.toString() || user?.email;
+    console.log("🔍 Final fallback ID:", fallbackId);
+    return fallbackId;
+  };
+
+  // Load notifications from backend
+  const loadNotifications = async () => {
+    let employeeId = currentEmployeeId;
+
+    // If we don't have employeeId yet, try to get it
+    if (!employeeId) {
+      employeeId = await getCurrentEmployeeId();
+      if (employeeId) {
+        setCurrentEmployeeId(employeeId);
+      }
+    }
+
+    console.log("🔄 Loading notifications for employeeId:", employeeId);
+
+    if (!employeeId) {
+      console.error("❌ No employeeId found for user");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log("📞 Calling notifications.get with employeeId:", employeeId);
+      const response = await notifications.get(employeeId);
+      console.log("📦 Raw API Response:", response);
+
+      let notifs = [];
+
+      // Handle response - should be direct array after AppContext fix
+      if (Array.isArray(response)) {
+        notifs = response;
+        console.log("✅ Using direct array response, count:", notifs.length);
+      } else {
+        console.log("❌ Unexpected response format:", response);
+      }
+
+      console.log("🎯 Final notifications to display:", notifs);
+
+      // Get unread count
+      let count = 0;
+      try {
+        console.log("🔢 Calling getUnreadCount with employeeId:", employeeId);
+        const countResponse = await notifications.getUnreadCount(employeeId);
+        console.log("📊 Unread count response:", countResponse);
+        count = countResponse.count || countResponse || 0;
+      } catch (countError) {
+        console.error("❌ Error getting unread count:", countError);
+        // Fallback: calculate from array
+        count = notifs.filter((notif) => !notif.isRead).length;
+      }
+
+      setNotificationList(notifs);
+      setUnreadCount(count);
+      console.log(
+        `✅ SUCCESS: Loaded ${notifs.length} notifications, ${count} unread`
+      );
+    } catch (error) {
+      console.error("❌ Error loading notifications:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      console.log("📝 Marking notification as read:", notificationId);
+      await notifications.markAsRead(notificationId);
+      await loadNotifications(); // Reload to update counts
+    } catch (error) {
+      console.error("❌ Error marking notification as read:", error);
+      toast({
+        title: "Error",
+        description: "Failed to mark notification as read",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!currentEmployeeId) {
+      await loadNotifications(); // This will set currentEmployeeId
+      return;
+    }
+
+    try {
+      console.log(
+        "📝 Marking all notifications as read for:",
+        currentEmployeeId
+      );
+      await notifications.markAllAsRead(currentEmployeeId);
+      await loadNotifications();
+      toast({
+        title: "Success",
+        description: "All notifications marked as read",
+      });
+    } catch (error) {
+      console.error("❌ Error marking all notifications as read:", error);
+      toast({
+        title: "Error",
+        description: "Failed to mark all notifications as read",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case "leave_application":
+        return <Users className="h-4 w-4 text-blue-500" />;
+      case "leave_approved":
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "leave_rejected":
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case "leave_cancelled":
+        return <Calendar className="h-4 w-4 text-gray-500" />;
+      default:
+        return <Bell className="h-4 w-4 text-gray-500" />;
+    }
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -57,7 +227,18 @@ const Header = ({ onMenuClick }) => {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Load notifications on component mount and set up refresh interval
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      await loadNotifications();
+    };
+
+    initializeNotifications();
+
+    // Refresh notifications every 30 seconds for real-time updates
+    const interval = setInterval(loadNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   return (
     <header className="bg-card shadow-sm border-b border-border px-6 py-4">
@@ -79,17 +260,29 @@ const Header = ({ onMenuClick }) => {
                 {tenant?.country} • {tenant?.timezone}
               </span>
             </div>
-            {user?.role !== 'employee' && (
+            {user?.role !== "employee" && (
               <>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/teams')}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/teams")}
+                >
                   <Users className="w-4 h-4 mr-2" /> Teams
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/organization')}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/organization")}
+                >
                   <Building2 className="w-4 h-4 mr-2" /> Organization
                 </Button>
               </>
             )}
-             <Button variant="ghost" size="sm" onClick={() => navigate('/company-policy')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/company-policy")}
+            >
               <BookOpen className="w-4 h-4 mr-2" /> Company Policy
             </Button>
           </div>
@@ -113,38 +306,94 @@ const Header = ({ onMenuClick }) => {
         <div className="flex items-center space-x-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative"
-              >
+              <Button variant="ghost" size="icon" className="relative">
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">{unreadCount}</span>
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuContent
+              align="end"
+              className="w-80 max-h-96 overflow-y-auto"
+            >
               <div className="flex justify-between items-center px-2 py-1">
                 <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                <Button variant="link" size="sm" onClick={markAllAsRead}>Mark all as read</Button>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={handleMarkAllAsRead}
+                    disabled={loading}
+                  >
+                    Mark all as read
+                  </Button>
+                )}
               </div>
               <DropdownMenuSeparator />
-              {notifications.length > 0 ? notifications.map((notification) => (
-                <DropdownMenuItem key={notification.id} className={`flex flex-col items-start ${!notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`} onClick={() => markAsRead(notification.id)}>
-                  <div className="flex items-center w-full">
-                    {notification.read ? <MailOpen className="mr-2 h-4 w-4 text-muted-foreground" /> : <Mail className="mr-2 h-4 w-4 text-primary" />}
-                    <p className={`font-semibold ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.title}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground ml-6">{notification.description}</p>
-                </DropdownMenuItem>
-              )) : <p className="text-sm text-muted-foreground text-center p-4">No new notifications.</p>}
+
+              {loading ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+                </div>
+              ) : notificationList.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center p-4">
+                  No notifications
+                </p>
+              ) : (
+                notificationList.map((notification) => (
+                  <DropdownMenuItem
+                    key={notification._id}
+                    className={`flex flex-col items-start p-3 cursor-pointer ${
+                      !notification.isRead
+                        ? "bg-blue-50 dark:bg-blue-900/20"
+                        : ""
+                    }`}
+                    onClick={() => handleMarkAsRead(notification._id)}
+                  >
+                    <div className="flex items-start w-full gap-2">
+                      {getNotificationIcon(notification.type)}
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`font-semibold text-sm ${
+                            !notification.isRead
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {notification.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(
+                            notification.createdAt
+                          ).toLocaleDateString()}{" "}
+                          at{" "}
+                          {new Date(
+                            notification.createdAt
+                          ).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      {!notification.isRead && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 flex-shrink-0"></div>
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center space-x-3 p-2">
+              <Button
+                variant="ghost"
+                className="flex items-center space-x-3 p-2"
+              >
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.avatar} />
                   <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
@@ -152,27 +401,38 @@ const Header = ({ onMenuClick }) => {
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-foreground">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {user?.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {user?.role}
+                  </p>
                 </div>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/')}>
+              <DropdownMenuItem onClick={() => navigate("/")}>
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/settings')}>
+              <DropdownMenuItem onClick={() => navigate("/settings")}>
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast({ title: 'Support', description: 'Feature not implemented.' })}>
+              <DropdownMenuItem
+                onClick={() =>
+                  toast({
+                    title: "Support",
+                    description: "Feature not implemented.",
+                  })
+                }
+              >
                 <LifeBuoy className="mr-2 h-4 w-4" />
                 <span>Support</span>
               </DropdownMenuItem>
-              
+
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Palette className="mr-2 h-4 w-4" />
@@ -180,15 +440,15 @@ const Header = ({ onMenuClick }) => {
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent>
-                    <DropdownMenuItem onClick={() => setTheme('light')}>
+                    <DropdownMenuItem onClick={() => setTheme("light")}>
                       <Sun className="mr-2 h-4 w-4" />
                       <span>Light</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setTheme('dark')}>
+                    <DropdownMenuItem onClick={() => setTheme("dark")}>
                       <Moon className="mr-2 h-4 w-4" />
                       <span>Dark</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setTheme('system')}>
+                    <DropdownMenuItem onClick={() => setTheme("system")}>
                       <Settings className="mr-2 h-4 w-4" />
                       <span>System</span>
                     </DropdownMenuItem>
@@ -196,7 +456,7 @@ const Header = ({ onMenuClick }) => {
                 </DropdownMenuPortal>
               </DropdownMenuSub>
 
-              {user?.role === 'employer' && (
+              {user?.role === "employer" && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuSub>
@@ -206,11 +466,13 @@ const Header = ({ onMenuClick }) => {
                     </DropdownMenuSubTrigger>
                     <DropdownMenuPortal>
                       <DropdownMenuSubContent>
-                        <DropdownMenuItem onClick={() => impersonate('hr')}>
+                        <DropdownMenuItem onClick={() => impersonate("hr")}>
                           <Briefcase className="mr-2 h-4 w-4" />
                           <span>HR</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => impersonate('employee')}>
+                        <DropdownMenuItem
+                          onClick={() => impersonate("employee")}
+                        >
                           <Users className="mr-2 h-4 w-4" />
                           <span>Employee</span>
                         </DropdownMenuItem>
@@ -221,14 +483,20 @@ const Header = ({ onMenuClick }) => {
               )}
 
               {isImpersonating && (
-                <DropdownMenuItem onClick={stopImpersonating} className="text-blue-600">
+                <DropdownMenuItem
+                  onClick={stopImpersonating}
+                  className="text-blue-600"
+                >
                   <Repeat className="mr-2 h-4 w-4" />
                   <span>Stop Impersonating</span>
                 </DropdownMenuItem>
               )}
 
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="text-red-600 focus:text-red-500">
+              <DropdownMenuItem
+                onClick={logout}
+                className="text-red-600 focus:text-red-500"
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
               </DropdownMenuItem>
