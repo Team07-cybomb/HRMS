@@ -1,11 +1,11 @@
-// models/EmployeeShift.js
+// models/EmployeeShift.js - Add pre-save hook
 const mongoose = require('mongoose');
 
 const employeeShiftSchema = new mongoose.Schema({
   employeeId: { 
-    type: mongoose.Schema.Types.ObjectId,
+    type: String,
     required: true, 
-    ref: 'Employee'  // ✅ Change from 'User' to 'Employee'
+    ref: 'Employee'
   },
   employeeName: {
     type: String,
@@ -31,17 +31,9 @@ const employeeShiftSchema = new mongoose.Schema({
     type: Boolean, 
     default: true 
   },
-  assignedBy: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    required: true 
-  },
-  assignedByName: {
-    type: String,
-    required: true
-  },
   teamId: {
     type: Number,
-    required: true
+    default: 1
   },
   createdAt: { 
     type: Date, 
@@ -52,6 +44,44 @@ const employeeShiftSchema = new mongoose.Schema({
     default: Date.now 
   }
 });
+
+// Pre-save middleware to ensure data consistency
+employeeShiftSchema.pre('save', async function(next) {
+  this.updatedAt = Date.now();
+  
+  // Ensure employeeName is always set and matches the employeeId
+  if (!this.employeeName || this.employeeName === 'Unknown Employee') {
+    try {
+      const Employee = require('./Employee');
+      const employee = await Employee.findOne({ 
+        employeeId: this.employeeId 
+      }).select('name');
+      
+      if (employee) {
+        this.employeeName = employee.name;
+        console.log(`Auto-populated employeeName for ${this.employeeId}: ${employee.name}`);
+      }
+    } catch (error) {
+      console.error('Error auto-populating employeeName:', error);
+    }
+  }
+  
+  // Ensure shiftName is always set
+  if (!this.shiftName || this.shiftName === 'Unknown Shift') {
+    try {
+      const shift = await mongoose.model('Shift').findById(this.shiftId).select('name');
+      if (shift) {
+        this.shiftName = shift.name;
+        console.log(`Auto-populated shiftName for ${this.shiftId}: ${shift.name}`);
+      }
+    } catch (error) {
+      console.error('Error auto-populating shiftName:', error);
+    }
+  }
+  
+  next();
+});
+
 
 // Compound index for active assignments
 employeeShiftSchema.index({ 
@@ -64,11 +94,6 @@ employeeShiftSchema.index({
   effectiveDate: 1 
 });
 
-// Pre-save middleware
-employeeShiftSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
 
 // Instance method to deactivate assignment
 employeeShiftSchema.methods.deactivate = function() {

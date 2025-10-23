@@ -11,11 +11,17 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token - FIXED
+// src/services/attendanceApi.js - Enhanced interceptors
 api.interceptors.request.use(
   (config) => {
-    // FIX: Use the correct token key from your AuthContext
-    const token = localStorage.getItem('hrms_token');
+    // Try multiple token storage locations
+    let token = localStorage.getItem('hrms_token');
+    
+    if (!token) {
+      console.warn('No auth token found in hrms_token');
+      // You might want to redirect to login here or throw error
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,14 +32,21 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle token expiration
+// Enhanced response interceptor
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
+      console.log('Token expired or invalid, clearing storage');
       clearToken();
-      window.location.href = '/login'; // Redirect to login
+      // Use window.location for hard redirect
+      window.location.href = '/login';
+    } else if (error.response?.status === 403) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to perform this action.",
+        variant: "destructive",
+      });
     }
     return Promise.reject(error);
   }

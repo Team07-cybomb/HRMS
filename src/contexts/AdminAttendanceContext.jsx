@@ -1,7 +1,7 @@
-// contexts/AdminAttendanceContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '@/components/ui/use-toast';
+import axios from 'axios';
 
 const AdminAttendanceContext = createContext();
 
@@ -35,6 +35,7 @@ export const AdminAttendanceProvider = ({ children }) => {
 
   // API base URL
   const API_BASE = 'http://localhost:5000/api';
+  const hasFetchedInitialData = useRef(false);
 
   // Helper function for API calls
   const apiCall = async (endpoint, options = {}) => {
@@ -69,13 +70,13 @@ export const AdminAttendanceProvider = ({ children }) => {
   };
 
   // Check if user has admin attendance permissions
-  const hasAdminAccess = () => {
+  const hasAdminAccess = useCallback(() => {
     if (!isAuthenticated || !user) return false;
     return can('view:all_attendance') || ['hr', 'employer', 'admin'].includes(user.role);
-  };
+  }, [isAuthenticated, user, can]);
 
   // Fetch dashboard statistics
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     if (!hasAdminAccess()) return;
 
     setLoading(prev => ({ ...prev, dashboard: true }));
@@ -92,68 +93,132 @@ export const AdminAttendanceProvider = ({ children }) => {
     } finally {
       setLoading(prev => ({ ...prev, dashboard: false }));
     }
-  };
+  }, [hasAdminAccess]);
 
-  // Fetch attendance data - UPDATED
-  const fetchAttendanceData = async (params = {}) => {
+  // Fetch attendance data
+  const fetchAttendanceData = useCallback(async (params = {}) => {
     if (!hasAdminAccess()) return;
 
     setLoading(prev => ({ ...prev, attendance: true }));
     try {
       const queryParams = new URLSearchParams({
         date: filters.date.toISOString().split('T')[0],
+        includeAbsent: 'true',
         ...params
       });
 
       const data = await apiCall(`/admin/attendance/data?${queryParams}`);
       
+      // Process data to ensure proper employee names
+      let processedData = [];
+      
       // Handle different response formats
-      if (data.attendance) {
-        setAttendanceData(data.attendance);
+      if (data && data.attendance && Array.isArray(data.attendance)) {
+        processedData = data.attendance.map(record => {
+          // Find employee in employees list to get proper name
+          const employee = employees.find(emp => 
+            emp._id === record.employeeId || 
+            emp._id === record.employeeId?._id
+          );
+          
+          return {
+            ...record,
+            employeeId: record.employeeId?._id || record.employeeId,
+            employeeName: employee?.name || record.employeeName || record.employee || 'Unknown Employee',
+            employee: employee?.name || record.employeeName || record.employee || 'Unknown Employee'
+          };
+        });
       } else if (Array.isArray(data)) {
-        setAttendanceData(data);
+        processedData = data.map(record => {
+          const employee = employees.find(emp => 
+            emp._id === record.employeeId || 
+            emp._id === record.employeeId?._id
+          );
+          
+          return {
+            ...record,
+            employeeId: record.employeeId?._id || record.employeeId,
+            employeeName: employee?.name || record.employeeName || record.employee || 'Unknown Employee',
+            employee: employee?.name || record.employeeName || record.employee || 'Unknown Employee'
+          };
+        });
       } else {
-        setAttendanceData([]);
+        console.warn('Unexpected API response format:', data);
+        processedData = [];
       }
+      
+      setAttendanceData(processedData);
     } catch (error) {
       console.error('Error fetching attendance data:', error);
-      // If the endpoint doesn't exist, create mock data for testing
-      if (error.message.includes('404')) {
-        console.log('Attendance endpoint not found, using mock data for testing');
-        setAttendanceData(generateMockAttendanceData());
-      } else {
-        toast({
-          title: "Failed to load attendance data",
-          description: error.message,
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Failed to load attendance data",
+        description: error.message,
+        variant: "destructive"
+      });
+      setAttendanceData([]); // Set empty array on error
     } finally {
       setLoading(prev => ({ ...prev, attendance: false }));
     }
-  };
+  }, [hasAdminAccess, filters.date, filters.department, filters.status, employees]);
 
-  // Generate mock attendance data for testing
-  const generateMockAttendanceData = () => {
-    const statuses = ['present', 'late', 'absent', 'half-day'];
-    const locations = ['Office', 'Remote', 'Client Site'];
-    
-    return employees.slice(0, 5).map((employee, index) => ({
-      _id: `mock-attendance-${index}`,
-      employeeId: employee._id,
-      employeeName: employee.name,
-      date: new Date(),
-      checkIn: index > 1 ? new Date().setHours(9, Math.floor(Math.random() * 30), 0) : null,
-      checkOut: index > 1 && index < 4 ? new Date().setHours(17, Math.floor(Math.random() * 30), 0) : null,
-      totalHours: index > 1 && index < 4 ? (8 + Math.random() * 2).toFixed(1) : null,
-      status: statuses[index] || 'present',
-      location: locations[Math.floor(Math.random() * locations.length)],
-      shiftName: 'General Shift'
-    }));
-  };
+  // Fetch detailed attendance record
+  const fetchAttendanceDetails = useCallback(async (attendanceId) => {
+    if (!hasAdminAccess()) {
+      throw new Error('No permission to fetch attendance details');
+    }
+
+    try {
+      // Check if it's an absent record ID format
+      if (attendanceId.startsWith('absent-')) {
+        // Extract employee ID and date from absent record ID
+        const parts = attendanceId.split('-');
+        const employeeId = parts[1];
+        const date = parts[2];
+        
+        // Fetch employee details
+        const employee = employees.find(emp => emp._id === employeeId);
+        if (!employee) {
+          throw new Error('Employee not found');
+        }
+
+        // Return absent record structure
+        return {
+          _id: attendanceId,
+          employeeId: employeeId,
+          employeeName: employee.name,
+          employee: employee,
+          date: date,
+          checkIn: null,
+          checkOut: null,
+          status: 'absent',
+          checkInPhoto: null,
+          checkOutPhoto: null,
+          checkInLocation: null,
+          checkOutLocation: null,
+          duration: '0h 0m',
+          shiftName: 'General Shift',
+          notes: 'Employee was absent'
+        };
+      }
+
+      // Fetch actual attendance record from API
+      const response = await apiCall(`/admin/attendance/${attendanceId}`);
+      return response;
+    } catch (error) {
+      console.error('Error fetching attendance details:', error);
+      
+      // Fallback: try to find in existing attendance data
+      const existingRecord = attendanceData.find(record => record._id === attendanceId);
+      if (existingRecord) {
+        return existingRecord;
+      }
+      
+      throw new Error('Attendance record not found');
+    }
+  }, [hasAdminAccess, employees, attendanceData]);
 
   // Fetch shifts
-  const fetchShifts = async () => {
+  const fetchShifts = useCallback(async () => {
     if (!hasAdminAccess()) return;
 
     setLoading(prev => ({ ...prev, shifts: true }));
@@ -170,10 +235,10 @@ export const AdminAttendanceProvider = ({ children }) => {
     } finally {
       setLoading(prev => ({ ...prev, shifts: false }));
     }
-  };
+  }, [hasAdminAccess]);
 
   // Fetch employee assignments
-  const fetchEmployeeAssignments = async () => {
+  const fetchEmployeeAssignments = useCallback(async () => {
     if (!hasAdminAccess()) return;
 
     setLoading(prev => ({ ...prev, assignments: true }));
@@ -190,80 +255,37 @@ export const AdminAttendanceProvider = ({ children }) => {
     } finally {
       setLoading(prev => ({ ...prev, assignments: false }));
     }
-  };
+  }, [hasAdminAccess]);
 
-// In AdminAttendanceContext.jsx - Update the fetchEmployees function
-const fetchEmployees = async () => {
-  if (!hasAdminAccess()) return;
+  // Fetch employees
+  const fetchEmployees = useCallback(async () => {
+    if (!hasAdminAccess()) return;
 
-  setLoading(prev => ({ ...prev, employees: true }));
-  try {
-    // Use the new employees endpoint
-    const employeesData = await apiCall('/admin/employees');
-    
-    // Handle different response formats
-    if (employeesData.employees) {
-      setEmployees(employeesData.employees);
-    } else if (Array.isArray(employeesData)) {
-      setEmployees(employeesData);
-    } else {
-      setEmployees([]);
-    }
-  } catch (error) {
-    console.error('Error fetching employees:', error);
-    toast({
-      title: "Failed to load employees",
-      description: error.message,
-      variant: "destructive"
-    });
-  } finally {
-    setLoading(prev => ({ ...prev, employees: false }));
-  }
-};
-
-  // Generate mock employees for testing
-  const generateMockEmployees = () => {
-    return [
-      {
-        _id: '68f07bbda77e7a233e1a56fb',
-        name: 'John Doe',
-        email: 'john.doe@company.com',
-        department: 'Engineering',
-        status: 'active'
-      },
-      {
-        _id: '68f07bbda77e7a233e1a56fc',
-        name: 'Jane Smith',
-        email: 'jane.smith@company.com',
-        department: 'Marketing',
-        status: 'active'
-      },
-      {
-        _id: '68f07bbda77e7a233e1a56fd',
-        name: 'Mike Johnson',
-        email: 'mike.johnson@company.com',
-        department: 'Sales',
-        status: 'active'
-      },
-      {
-        _id: '68f07bbda77e7a233e1a56fe',
-        name: 'Sarah Wilson',
-        email: 'sarah.wilson@company.com',
-        department: 'HR',
-        status: 'active'
-      },
-      {
-        _id: '68f07bbda77e7a233e1a56ff',
-        name: 'David Brown',
-        email: 'david.brown@company.com',
-        department: 'Engineering',
-        status: 'active'
+    setLoading(prev => ({ ...prev, employees: true }));
+    try {
+      const employeesData = await apiCall('/employees');
+      
+      if (employeesData.employees) {
+        setEmployees(employeesData.employees);
+      } else if (Array.isArray(employeesData)) {
+        setEmployees(employeesData);
+      } else {
+        setEmployees([]);
       }
-    ];
-  };
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      toast({
+        title: "Failed to load employees",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, employees: false }));
+    }
+  }, [hasAdminAccess]);
 
   // Create shift
-  const createShift = async (shiftData) => {
+  const createShift = useCallback(async (shiftData) => {
     if (!hasAdminAccess()) {
       toast({
         title: "Permission Denied",
@@ -294,10 +316,10 @@ const fetchEmployees = async () => {
       });
       throw error;
     }
-  };
+  }, [hasAdminAccess]);
 
   // Update shift
-  const updateShift = async (shiftId, shiftData) => {
+  const updateShift = useCallback(async (shiftId, shiftData) => {
     if (!hasAdminAccess()) {
       toast({
         title: "Permission Denied",
@@ -330,10 +352,10 @@ const fetchEmployees = async () => {
       });
       throw error;
     }
-  };
+  }, [hasAdminAccess]);
 
   // Delete shift
-  const deleteShift = async (shiftId) => {
+  const deleteShift = useCallback(async (shiftId) => {
     if (!hasAdminAccess()) {
       toast({
         title: "Permission Denied",
@@ -362,10 +384,10 @@ const fetchEmployees = async () => {
       });
       throw error;
     }
-  };
+  }, [hasAdminAccess]);
 
   // Assign shift to employee
-  const assignShiftToEmployee = async (assignmentData) => {
+  const assignShiftToEmployee = useCallback(async (assignmentData) => {
     if (!hasAdminAccess()) {
       toast({
         title: "Permission Denied",
@@ -396,10 +418,96 @@ const fetchEmployees = async () => {
       });
       throw error;
     }
-  };
+  }, [hasAdminAccess]);
+
+  // Update employee assignment
+  const updateEmployeeAssignment = useCallback(async (assignmentId, updateData) => {
+    if (!hasAdminAccess()) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to update assignments",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, assignments: true }));
+    try {
+      const updatedAssignment = await apiCall(`/admin/shifts/assignments/${assignmentId}`, {
+        method: 'PUT',
+        body: updateData
+      });
+      
+      // PROPERLY UPDATE THE ASSIGNMENTS LIST
+      setEmployeeAssignments(prev => prev.map(assignment => {
+        if (assignment._id === assignmentId) {
+          return { 
+            ...assignment, 
+            ...updatedAssignment,
+            // Ensure nested objects are properly merged
+            employeeId: updatedAssignment.employeeId || assignment.employeeId,
+            shiftId: updatedAssignment.shiftId || assignment.shiftId
+          };
+        }
+        return assignment;
+      }));
+      
+      toast({
+        title: "Assignment updated successfully",
+        description: "Shift assignment has been updated"
+      });
+      
+      return updatedAssignment;
+    } catch (error) {
+      console.error('Error updating assignment:', error);
+      toast({
+        title: "Failed to update assignment",
+        description: error.message,
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setLoading(prev => ({ ...prev, assignments: false }));
+    }
+  }, [hasAdminAccess]);
+
+  // Remove employee assignment
+  const removeEmployeeAssignment = useCallback(async (assignmentId) => {
+    if (!hasAdminAccess()) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to remove assignments",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, assignments: true }));
+    try {
+      await apiCall(`/admin/shifts/assignments/${assignmentId}`, {
+        method: 'DELETE'
+      });
+      
+      setEmployeeAssignments(prev => prev.filter(assignment => assignment._id !== assignmentId));
+      toast({
+        title: "Assignment removed successfully",
+        description: "Shift assignment has been removed"
+      });
+    } catch (error) {
+      console.error('Error removing assignment:', error);
+      toast({
+        title: "Failed to remove assignment",
+        description: error.message,
+        variant: "destructive"
+      });
+      throw error;
+    } finally {
+      setLoading(prev => ({ ...prev, assignments: false }));
+    }
+  }, [hasAdminAccess]);
 
   // Export attendance data
-  const exportAttendanceData = async (params = {}) => {
+  const exportAttendanceData = useCallback(async (params = {}) => {
     if (!hasAdminAccess()) return;
 
     try {
@@ -419,7 +527,6 @@ const fetchEmployees = async () => {
       const a = document.createElement('a');
       a.href = url;
       
-      // Get filename from response headers or use default
       const contentDisposition = response.headers.get('content-disposition');
       let filename = `attendance-export-${new Date().toISOString().split('T')[0]}.csv`;
       
@@ -447,30 +554,50 @@ const fetchEmployees = async () => {
       });
       throw error;
     }
-  };
+  }, [hasAdminAccess]);
 
   // Update filters
-  const updateFilters = (newFilters) => {
+  const updateFilters = useCallback((newFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
-  };
+  }, []);
 
   // Refresh all data
-  const refreshData = () => {
-    fetchDashboardStats();
-    fetchAttendanceData();
-    fetchShifts();
-    fetchEmployeeAssignments();
-    fetchEmployees();
-  };
-
-  // Effect to fetch data when filters change or user authenticates
-  useEffect(() => {
-    if (hasAdminAccess()) {
-      fetchDashboardStats();
-      fetchAttendanceData();
-      fetchEmployees(); // Fetch employees on initial load for assignment forms
+  const refreshData = useCallback(async () => {
+    if (!hasAdminAccess()) return;
+    
+    try {
+      await Promise.all([
+        fetchDashboardStats(),
+        fetchAttendanceData(),
+        fetchShifts(),
+        fetchEmployeeAssignments(),
+        fetchEmployees()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
     }
-  }, [filters.date, isAuthenticated]);
+  }, [hasAdminAccess, fetchDashboardStats, fetchAttendanceData, fetchShifts, fetchEmployeeAssignments, fetchEmployees]);
+
+  // Effect to fetch initial data when component mounts
+  useEffect(() => {
+    if (hasAdminAccess() && !hasFetchedInitialData.current) {
+      hasFetchedInitialData.current = true;
+      // Fetch employees first since other functions depend on it
+      fetchEmployees().then(() => {
+        fetchDashboardStats();
+        fetchAttendanceData();
+        fetchShifts();
+        fetchEmployeeAssignments();
+      });
+    }
+  }, [isAuthenticated, hasAdminAccess, fetchEmployees, fetchDashboardStats, fetchAttendanceData, fetchShifts, fetchEmployeeAssignments]);
+
+  // Effect to refetch attendance data when filters change
+  useEffect(() => {
+    if (hasAdminAccess() && employees.length > 0 && hasFetchedInitialData.current) {
+      fetchAttendanceData();
+    }
+  }, [filters.date, filters.department, filters.status, employees.length, hasAdminAccess, fetchAttendanceData]);
 
   const value = {
     // State
@@ -484,6 +611,7 @@ const fetchEmployees = async () => {
     
     // Actions
     fetchAttendanceData,
+    fetchAttendanceDetails,
     fetchShifts,
     fetchEmployeeAssignments,
     fetchEmployees,
@@ -491,6 +619,8 @@ const fetchEmployees = async () => {
     updateShift,
     deleteShift,
     assignShiftToEmployee,
+    updateEmployeeAssignment,
+    removeEmployeeAssignment,
     exportAttendanceData,
     updateFilters,
     refreshData,

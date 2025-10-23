@@ -1,5 +1,5 @@
 // controllers/adminAttendanceController.js
-const Attendance = require('../models/Attendance'); // Updated import
+const Attendance = require('../models/Attendance');
 const Timesheet = require('../models/Timesheet');
 const ManualRequest = require('../models/ManualRequest');
 const Shift = require('../models/attendance/Shift');
@@ -7,7 +7,7 @@ const EmployeeShift = require('../models/attendance/EmployeeShift');
 const AttendanceReport = require('../models/attendance/AttendanceReport');
 const Employee = require('../models/Employee');
 
-// Get comprehensive dashboard statistics
+// In adminAttendanceController.js - Update getDashboardStats function
 const getDashboardStats = async (req, res) => {
   try {
     const today = new Date();
@@ -78,7 +78,6 @@ const getDashboardStats = async (req, res) => {
     });
 
     // Calculate absent count (total employees - present employees)
-    // Note: Removed onLeave calculation since it's not in the status enum
     stats.absentToday = Math.max(0, totalEmployees - stats.presentToday);
 
     res.json(stats);
@@ -87,22 +86,22 @@ const getDashboardStats = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// Get detailed attendance data with filters
+// controllers/adminAttendanceController.js - Update getAttendanceData function
 const getAttendanceData = async (req, res) => {
   try {
     const { 
       date, 
-      employeeId, 
+      employeeId, // This is now EMP003 (String), not ObjectId
       teamId, 
       status, 
       department,
+      includeAbsent = 'false',
       page = 1, 
-      limit = 50 
+      limit = 100 
     } = req.query;
 
-    let filter = {};
     const skip = (page - 1) * limit;
+    const shouldIncludeAbsent = includeAbsent === 'true';
 
     // Date filter - default to today if no date provided
     const targetDate = date ? new Date(date) : new Date();
@@ -110,32 +109,139 @@ const getAttendanceData = async (req, res) => {
     
     const nextDay = new Date(targetDate);
     nextDay.setDate(nextDay.getDate() + 1);
-    
-    filter.date = {
-      $gte: targetDate,
-      $lt: nextDay
+
+    // Get all active employees
+    const activeEmployees = await Employee.find({ status: 'active' })
+      .select('_id name email department designation employeeId') // Add employeeId field
+      .lean();
+
+    // Build base filter for attendance records
+    let attendanceFilter = {
+      date: {
+        $gte: targetDate,
+        $lt: nextDay
+      }
     };
 
-    // Other filters
-    if (employeeId) filter.employeeId = employeeId;
-    if (teamId) filter.teamId = parseInt(teamId);
-    if (status) filter.status = status;
+    // Apply additional filters - now using employeeId as String
+    if (employeeId) {
+      attendanceFilter.employeeId = employeeId; // Direct string comparison
+    }
+    if (teamId) attendanceFilter.teamId = parseInt(teamId);
+    if (status) attendanceFilter.status = status;
 
-    const attendance = await Attendance.find(filter)
-      .populate('employeeId', 'name email department')
+    // Get existing attendance records - NO population needed since employeeId is String
+    const existingAttendance = await Attendance.find(attendanceFilter)
       .sort({ date: -1, checkIn: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
-    const total = await Attendance.countDocuments(filter);
+    console.log('Found attendance records:', existingAttendance.length);
+    console.log('Sample record:', existingAttendance[0]);
+
+    // Create a map of employee IDs to employee data for quick lookup
+    const employeeMap = new Map();
+    activeEmployees.forEach(emp => {
+      // Map by employeeId (EMP003) for attendance lookup
+      employeeMap.set(emp.employeeId, emp);
+      // Also map by _id for fallback
+      employeeMap.set(emp._id.toString(), emp);
+    });
+
+    // Process records to ensure consistent employee data
+    const correctedAttendance = existingAttendance.map(record => {
+      // Get employee data using employeeId (EMP003)
+      const employeeData = employeeMap.get(record.employeeId);
+      
+      if (!employeeData) {
+        console.warn(`No employee found for employeeId: ${record.employeeId} in record: ${record._id}`);
+      }
+
+      return {
+        ...record,
+        employeeId: record.employeeId, // Keep the EMP003
+        employee: employeeData?.name || record.employee || 'Unknown Employee',
+        employeeName: employeeData?.name || record.employee || 'Unknown Employee',
+        employeeEmail: employeeData?.email,
+        employeeDepartment: employeeData?.department,
+        employeeObjectId: employeeData?._id // Add ObjectId for reference
+      };
+    });
+
+    let finalAttendanceData = correctedAttendance;
+
+    // If includeAbsent is true, create records for employees without attendance
+    if (shouldIncludeAbsent) {
+      const employeesWithAttendance = new Set(
+        correctedAttendance.map(record => record.employeeId)
+      );
+
+      // Find employees without attendance records
+      let employeesWithoutAttendance = activeEmployees.filter(employee => 
+        !employeesWithAttendance.has(employee.employeeId)
+      );
+
+      // Apply employee filter to absent records if specified
+      if (employeeId) {
+        employeesWithoutAttendance = employeesWithoutAttendance.filter(employee => 
+          employee.employeeId === employeeId
+        );
+      }
+
+      // Create absent records for employees without attendance
+      const absentRecords = employeesWithoutAttendance.map(employee => ({
+        _id: `absent-${employee.employeeId}-${targetDate.toISOString().split('T')[0]}`,
+        employeeId: employee.employeeId, // Use EMP003
+        employee: employee.name,
+        employeeName: employee.name,
+        employeeEmail: employee.email,
+        employeeDepartment: employee.department,
+        employeeObjectId: employee._id,
+        date: targetDate,
+        checkIn: null,
+        checkOut: null,
+        checkInTime: null,
+        checkOutTime: null,
+        totalHours: 0,
+        duration: '0h 0m',
+        status: 'absent',
+        location: null,
+        checkInLocation: null,
+        checkOutLocation: null,
+        checkInPhoto: null,
+        checkOutPhoto: null,
+        shift: 'General Shift',
+        shiftName: 'General Shift',
+        notes: 'Employee was absent',
+        isAbsentRecord: true
+      }));
+
+      // Combine existing attendance with absent records
+      finalAttendanceData = [...correctedAttendance, ...absentRecords];
+
+      // Apply status filter if specified
+      if (status) {
+        finalAttendanceData = finalAttendanceData.filter(record => record.status === status);
+      }
+    }
+
+    const total = finalAttendanceData.length;
 
     res.json({
-      attendance: attendance || [],
+      attendance: finalAttendanceData,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
         pages: Math.ceil(total / limit)
+      },
+      metadata: {
+        date: targetDate.toISOString().split('T')[0],
+        includeAbsent: shouldIncludeAbsent,
+        totalEmployees: activeEmployees.length,
+        presentCount: correctedAttendance.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half-day').length,
+        absentCount: finalAttendanceData.filter(r => r.status === 'absent').length
       }
     });
   } catch (error) {
@@ -144,88 +250,76 @@ const getAttendanceData = async (req, res) => {
   }
 };
 
-// Create some sample attendance data for testing
-const createSampleAttendanceData = async (req, res) => {
+// Get single attendance record details
+const getAttendanceDetails = async (req, res) => {
   try {
-    // Get active employees
-    const employees = await Employee.find({ status: 'active' }).limit(5);
-    
-    if (employees.length === 0) {
-      return res.status(400).json({ 
-        message: 'No active employees found. Please create employees first.' 
-      });
-    }
+    const { id } = req.params;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Check if it's an absent record ID format
+    if (id.startsWith('absent-')) {
+      // Extract employee ID and date from absent record ID
+      const parts = id.split('-');
+      const employeeId = parts[1];
+      const date = parts.slice(2).join('-'); // Handle dates with hyphens
 
-    // Delete existing attendance for today (to avoid duplicates)
-    await Attendance.deleteMany({
-      date: {
-        $gte: today,
-        $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      }
-    });
+      // Find employee
+      const employee = await Employee.findById(employeeId)
+        .select('_id name email department designation')
+        .lean();
 
-    // Create sample attendance records
-    const sampleRecords = [];
-    const statuses = ['present', 'late', 'absent', 'present', 'half-day'];
-
-    for (let i = 0; i < employees.length; i++) {
-      const employee = employees[i];
-      const status = statuses[i] || 'present';
-      
-      let checkIn = null;
-      let checkOut = null;
-      let duration = '0h 0m';
-
-      if (status === 'present' || status === 'late') {
-        checkIn = `09:${i * 10}:00`; // Staggered check-in times
-        checkOut = '17:30:00';
-        duration = '8h 30m';
-      } else if (status === 'half-day') {
-        checkIn = '09:00:00';
-        checkOut = '13:00:00';
-        duration = '4h 0m';
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee not found' });
       }
 
-      const record = new Attendance({
-        employeeId: employee._id.toString(),
+      // Return absent record structure
+      const absentRecord = {
+        _id: id,
+        employeeId: employee,
         employee: employee.name,
-        date: today,
-        checkIn,
-        checkOut,
-        duration,
-        status,
-        checkInLocation: {
-          address: 'Office'
-        },
-        teamId: 1,
-        shift: 'Day Shift',
-        location: 'Office'
-      });
+        employeeName: employee.name,
+        date: new Date(date),
+        checkIn: null,
+        checkOut: null,
+        checkInTime: null,
+        checkOutTime: null,
+        totalHours: 0,
+        duration: '0h 0m',
+        status: 'absent',
+        location: null,
+        checkInLocation: null,
+        checkOutLocation: null,
+        checkInPhoto: null,
+        checkOutPhoto: null,
+        shift: 'General Shift',
+        shiftName: 'General Shift',
+        notes: 'Employee was absent',
+        isAbsentRecord: true
+      };
 
-      sampleRecords.push(record);
+      return res.json(absentRecord);
     }
 
-    await Attendance.insertMany(sampleRecords);
+    // Regular attendance record lookup
+    const attendanceRecord = await Attendance.findById(id)
+      .populate('employeeId', 'name email department designation')
+      .lean();
 
-    res.json({
-      message: 'Sample attendance data created successfully',
-      records: sampleRecords.length,
-      date: today.toDateString()
-    });
+    if (!attendanceRecord) {
+      return res.status(404).json({ message: 'Attendance record not found' });
+    }
+
+    res.json(attendanceRecord);
   } catch (error) {
-    console.error('Create sample data error:', error);
+    console.error('Get attendance details error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Get employees list for the frontend
+// In adminAttendanceController.js - Update getEmployees function
 const getEmployees = async (req, res) => {
   try {
     const employees = await Employee.find({ status: 'active' })
-      .select('_id name email department designation status')
+      .select('_id name email department designation status employeeId') // Add employeeId
       .sort({ name: 1 });
 
     res.json({
@@ -237,61 +331,145 @@ const getEmployees = async (req, res) => {
   }
 };
 
-// Export attendance data
+// In adminAttendanceController.js - Update exportAttendanceData function
 const exportAttendanceData = async (req, res) => {
   try {
     const { 
       startDate, 
       endDate, 
       teamId, 
-      format = 'json' 
+      department,
+      includeAbsent = 'false',
+      format = 'csv' 
     } = req.query;
 
-    let filter = {};
+    const shouldIncludeAbsent = includeAbsent === 'true';
 
-    // Date range filter - default to today if no dates provided
+    // Date range filter
     const start = startDate ? new Date(startDate) : new Date();
     const end = endDate ? new Date(endDate) : new Date();
     start.setHours(0, 0, 0, 0);
-    end.setDate(end.getDate() + 1); // Include end date
+    end.setHours(23, 59, 59, 999);
 
-    filter.date = {
-      $gte: start,
-      $lt: end
+    // Get all active employees for reference
+    const activeEmployees = await Employee.find({ status: 'active' })
+      .select('_id name email department designation employeeId')
+      .lean();
+
+    // Build attendance filter
+    let attendanceFilter = {
+      date: {
+        $gte: start,
+        $lte: end
+      }
     };
 
-    if (teamId) filter.teamId = parseInt(teamId);
+    if (teamId) attendanceFilter.teamId = parseInt(teamId);
 
-    const attendance = await Attendance.find(filter)
-      .populate('employeeId', 'name email department')
-      .sort({ date: 1, employeeId: 1 });
+    // Get existing attendance records
+    const existingAttendance = await Attendance.find(attendanceFilter)
+      .sort({ date: 1, employeeId: 1 })
+      .lean();
 
+    // Create employee map for lookup
+    const employeeMap = new Map();
+    activeEmployees.forEach(emp => {
+      employeeMap.set(emp.employeeId, emp);
+    });
+
+    // Process attendance records with employee data
+    const processedAttendance = existingAttendance.map(record => {
+      const employeeData = employeeMap.get(record.employeeId);
+      return {
+        ...record,
+        employeeName: employeeData?.name || record.employee,
+        employeeEmail: employeeData?.email,
+        employeeDepartment: employeeData?.department
+      };
+    });
+
+    let finalData = processedAttendance;
+
+    // Include absent employees if requested
+    if (shouldIncludeAbsent) {
+      // For date range, we need to generate absent records for each date
+      const dateRange = getDatesInRange(start, end);
+      const absentRecords = [];
+
+      for (const date of dateRange) {
+        const attendanceForDate = processedAttendance.filter(record => 
+          new Date(record.date).toDateString() === date.toDateString()
+        );
+
+        const employeesWithAttendance = new Set(
+          attendanceForDate.map(record => record.employeeId)
+        );
+
+        const employeesWithoutAttendance = activeEmployees.filter(employee => 
+          !employeesWithAttendance.has(employee.employeeId)
+        );
+
+        // Create absent records for this date
+        absentRecords.push(...employeesWithoutAttendance.map(employee => ({
+          _id: `absent-${employee.employeeId}-${date.toISOString().split('T')[0]}`,
+          employeeId: employee.employeeId,
+          employee: employee.name,
+          employeeName: employee.name,
+          employeeEmail: employee.email,
+          employeeDepartment: employee.department,
+          date: date,
+          checkIn: null,
+          checkOut: null,
+          totalHours: 0,
+          duration: '0h 0m',
+          status: 'absent',
+          location: null,
+          shift: 'General Shift',
+          shiftName: 'General Shift',
+          notes: 'Employee was absent',
+          isAbsentRecord: true
+        })));
+      }
+
+      finalData = [...processedAttendance, ...absentRecords].sort((a, b) => 
+        new Date(a.date) - new Date(b.date) || a.employeeName.localeCompare(b.employeeName)
+      );
+    }
+
+    // Rest of export logic remains the same...
     // Create report record
     const report = new AttendanceReport({
       reportType: 'custom',
-      title: `Attendance Export - ${startDate} to ${endDate}`,
+      title: `Attendance Export - ${startDate} to ${endDate}${shouldIncludeAbsent ? ' (with absent)' : ''}`,
       startDate: start,
       endDate: end,
-      filters: { teamIds: teamId ? [parseInt(teamId)] : [] },
+      filters: { 
+        teamIds: teamId ? [parseInt(teamId)] : [],
+        includeAbsent: shouldIncludeAbsent
+      },
       generatedBy: req.user.id,
       generatedByName: req.user.name,
-      data: { recordCount: attendance.length }
+      data: { recordCount: finalData.length }
     });
 
     await report.save();
 
     if (format === 'csv') {
-      // Convert to CSV
-      const csvData = convertToCSV(attendance);
+      const csvData = convertToCSV(finalData);
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=attendance-${startDate}-to-${endDate}.csv`);
+      res.setHeader('Content-Disposition', `attachment; filename=attendance-${startDate}-to-${endDate}${shouldIncludeAbsent ? '-with-absent' : ''}.csv`);
       return res.send(csvData);
     }
 
     res.json({
       message: 'Export successful',
       reportId: report._id,
-      data: attendance
+      data: finalData,
+      metadata: {
+        recordCount: finalData.length,
+        includeAbsent: shouldIncludeAbsent,
+        dateRange: `${startDate} to ${endDate}`
+      }
     });
 
   } catch (error) {
@@ -299,25 +477,40 @@ const exportAttendanceData = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+// Helper function to get all dates in a range
+const getDatesInRange = (startDate, endDate) => {
+  const dates = [];
+  const currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    dates.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return dates;
+};
 
 // Helper function to convert to CSV
 const convertToCSV = (data) => {
   if (!data.length) return 'No data available';
   
-  const headers = ['Employee Name', 'Date', 'Check In', 'Check Out', 'Duration', 'Status', 'Location', 'Shift'];
+  const headers = ['Employee Name', 'Email', 'Department', 'Date', 'Check In', 'Check Out', 'Duration', 'Status', 'Location', 'Shift', 'Notes'];
   
   let csv = headers.join(',') + '\n';
   
   data.forEach(item => {
     const row = [
-      `"${item.employee}"`,
-      `"${item.date.toISOString().split('T')[0]}"`,
-      `"${item.checkIn || 'N/A'}"`,
-      `"${item.checkOut || 'N/A'}"`,
-      `"${item.duration || 'N/A'}"`,
+      `"${item.employeeName || item.employee || 'Unknown'}"`,
+      `"${item.employeeId?.email || 'N/A'}"`,
+      `"${item.employeeId?.department || 'N/A'}"`,
+      `"${new Date(item.date).toISOString().split('T')[0]}"`,
+      `"${item.checkIn ? new Date(item.checkIn).toLocaleTimeString() : 'N/A'}"`,
+      `"${item.checkOut ? new Date(item.checkOut).toLocaleTimeString() : 'N/A'}"`,
+      `"${item.duration || '0h 0m'}"`,
       `"${item.status}"`,
-      `"${item.location || 'Office'}"`,
-      `"${item.shift || 'Day Shift'}"`
+      `"${item.location || 'N/A'}"`,
+      `"${item.shiftName || item.shift || 'General Shift'}"`,
+      `"${item.notes || ''}"`
     ];
     csv += row.join(',') + '\n';
   });
@@ -328,7 +521,7 @@ const convertToCSV = (data) => {
 module.exports = {
   getDashboardStats,
   getAttendanceData,
+  getAttendanceDetails, // Add this new function
   exportAttendanceData,
-  createSampleAttendanceData,
   getEmployees
 };

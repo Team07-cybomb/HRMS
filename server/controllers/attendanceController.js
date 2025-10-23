@@ -1,12 +1,12 @@
 const Attendance = require('../models/Attendance');
 const Timesheet = require('../models/Timesheet');
 const ManualRequest = require('../models/ManualRequest');
-
-// Check-in with location and photo
+const mongoose = require('mongoose');
+// In attendanceController.js - Updated checkIn function with late detection
 const checkIn = async (req, res) => {
   try {
     const { 
-      employeeId, 
+      employeeId,
       employee, 
       checkInTime, 
       latitude, 
@@ -17,12 +17,25 @@ const checkIn = async (req, res) => {
       teamId 
     } = req.body;
 
+    console.log('Received check-in request:', { employeeId, employee });
+
+    // Validate that employee exists by employeeId
+    const Employee = require('../models/Employee');
+    const employeeExists = await Employee.findOne({ employeeId: employeeId });
+
+    if (!employeeExists) {
+      console.log('Employee not found with employeeId:', employeeId);
+      return res.status(400).json({
+        message: 'Employee not found. Please check employee ID.'
+      });
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Check if already checked in today
     const existingAttendance = await Attendance.findOne({
-      employeeId,
+      employeeId: employeeId,
       date: today
     });
 
@@ -30,6 +43,37 @@ const checkIn = async (req, res) => {
       return res.status(400).json({
         message: 'Already checked in for today'
       });
+    }
+
+    // Get employee's current shift to check for late check-in
+    const EmployeeShift = require('../models/attendance/EmployeeShift');
+    const currentShift = await EmployeeShift.findOne({
+      employeeId: employeeId,
+      isActive: true
+    }).populate('shiftId').lean();
+
+    let status = 'present';
+    let isLate = false;
+    let lateMinutes = 0;
+
+    // Check if check-in is late
+    if (currentShift && currentShift.shiftId) {
+      const shiftStartTime = currentShift.shiftId.startTime; // Format: "09:00"
+      const checkInTimeObj = new Date(`${today.toDateString()} ${checkInTime}`);
+      
+      // Parse shift start time
+      const [shiftHours, shiftMinutes] = shiftStartTime.split(':').map(Number);
+      const shiftStartTimeObj = new Date(today);
+      shiftStartTimeObj.setHours(shiftHours, shiftMinutes, 0, 0);
+
+      // Calculate if check-in is late
+      if (checkInTimeObj > shiftStartTimeObj) {
+        isLate = true;
+        lateMinutes = Math.floor((checkInTimeObj - shiftStartTimeObj) / (1000 * 60));
+        status = 'late';
+        
+        console.log(`Late check-in detected: ${lateMinutes} minutes late`);
+      }
     }
 
     let attendance;
@@ -42,20 +86,24 @@ const checkIn = async (req, res) => {
           checkIn: checkInTime,
           checkInLocation: { latitude, longitude, address, accuracy },
           checkInPhoto: photo,
-          status: 'present'
+          status: status,
+          isLate: isLate,
+          lateMinutes: lateMinutes
         },
         { new: true }
       );
     } else {
       // Create new record
       attendance = new Attendance({
-        employeeId,
-        employee,
+        employeeId: employeeId,
+        employee: employeeExists.name,
         date: today,
         checkIn: checkInTime,
         checkInLocation: { latitude, longitude, address, accuracy },
         checkInPhoto: photo,
-        status: 'present',
+        status: status,
+        isLate: isLate,
+        lateMinutes: lateMinutes,
         teamId,
         location: address || 'Office'
       });
@@ -63,8 +111,10 @@ const checkIn = async (req, res) => {
     }
 
     res.status(200).json({
-      message: 'Checked in successfully',
-      attendance
+      message: isLate ? `Checked in successfully (${lateMinutes} minutes late)` : 'Checked in successfully',
+      attendance,
+      isLate,
+      lateMinutes
     });
 
   } catch (error) {
@@ -72,8 +122,7 @@ const checkIn = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// Check-out with location and photo
+// In attendanceController.js - Updated checkOut function with break deduction
 const checkOut = async (req, res) => {
   try {
     const { 
@@ -106,25 +155,53 @@ const checkOut = async (req, res) => {
       });
     }
 
-    // Calculate duration
+    // Get shift details for break duration
+    const EmployeeShift = require('../models/attendance/EmployeeShift');
+    const currentShift = await EmployeeShift.findOne({
+      employeeId: employeeId,
+      isActive: true
+    }).populate('shiftId').lean();
+
+    const breakDuration = currentShift?.shiftId?.breakDuration || 60; // Default 60 minutes
+
+    // Calculate duration with break deduction
     const checkInTime = new Date(`${today.toDateString()} ${attendance.checkIn}`);
     const checkOutTimeObj = new Date(`${today.toDateString()} ${checkOutTime}`);
-    const durationMs = checkOutTimeObj - checkInTime;
-    const hours = Math.floor(durationMs / (1000 * 60 * 60));
-    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    // Calculate total minutes worked
+    const totalMinutes = Math.floor((checkOutTimeObj - checkInTime) / (1000 * 60));
+    
+    // Subtract break duration (convert to minutes)
+    const workingMinutes = Math.max(0, totalMinutes - breakDuration);
+    
+    const hours = Math.floor(workingMinutes / 60);
+    const minutes = workingMinutes % 60;
     const duration = `${hours}h ${minutes}m`;
+
+    // Update status if it was late check-in
+    let finalStatus = attendance.status;
+    if (attendance.isLate && finalStatus === 'late') {
+      // Keep as late even after check-out
+      finalStatus = 'late';
+    }
 
     // Update attendance record
     attendance.checkOut = checkOutTime;
     attendance.checkOutLocation = { latitude, longitude, address, accuracy };
     attendance.checkOutPhoto = photo;
     attendance.duration = duration;
+    attendance.status = finalStatus;
+    attendance.workingMinutes = workingMinutes;
+    attendance.totalMinutes = totalMinutes;
+    attendance.breakDuration = breakDuration;
 
     await attendance.save();
 
     res.status(200).json({
       message: 'Checked out successfully',
-      attendance
+      attendance,
+      breakDeducted: `${breakDuration}m`,
+      netWorkingHours: duration
     });
 
   } catch (error) {
@@ -133,13 +210,19 @@ const checkOut = async (req, res) => {
   }
 };
 
-// In attendanceController.js - Update getAttendance function
+// controllers/attendanceController.js - Updated getAttendance function
 const getAttendance = async (req, res) => {
   try {
-    const { date, employeeId, teamId, status } = req.query;
+    const { date, employeeId, teamId, status, startDate, endDate } = req.query;
     let filter = {};
 
-    if (date) {
+    // Date range filter
+    if (startDate && endDate) {
+      filter.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    } else if (date) {
       const targetDate = new Date(date);
       const nextDay = new Date(targetDate);
       nextDay.setDate(nextDay.getDate() + 1);
@@ -151,7 +234,7 @@ const getAttendance = async (req, res) => {
     }
 
     if (employeeId) {
-      filter.employeeId = employeeId;
+      filter.employeeId = employeeId; // Now using EMP003 directly
     }
 
     if (teamId) {
@@ -162,18 +245,80 @@ const getAttendance = async (req, res) => {
       filter.status = status;
     }
 
-    // Fix: Check user role properly
-    const userRole = req.user.role || req.user.roles?.[0];
-    if (userRole !== 'admin' && userRole !== 'hr' && userRole !== 'employer') {
-      // Regular users can only see their own attendance
-      filter.employeeId = req.user.id;
-    }
+    console.log('Attendance filter:', filter);
 
     const attendance = await Attendance.find(filter)
       .sort({ date: -1, checkIn: -1 })
-      .select('-checkInPhoto -checkOutPhoto');
+      .select('-checkInPhoto -checkOutPhoto')
+      .lean();
 
-    res.json(attendance);
+    console.log(`Found ${attendance.length} attendance records`);
+
+    // Get shift data for all records
+    const formattedAttendance = await Promise.all(
+      attendance.map(async (record) => {
+        try {
+          // Get current shift assignment for this employee
+          let shiftData = {
+            shift: 'General Shift',
+            shiftName: 'General Shift', 
+            shiftStart: '09:00',
+            shiftEnd: '17:00'
+          };
+
+          const EmployeeShift = require('../models/attendance/EmployeeShift');
+          const currentShift = await EmployeeShift.findOne({
+            employeeId: record.employeeId, // Use EMP003
+            isActive: true
+          }).populate('shiftId').lean();
+
+          if (currentShift && currentShift.shiftId) {
+            shiftData = {
+              shift: currentShift.shiftId.name || 'General Shift',
+              shiftName: currentShift.shiftId.name || 'General Shift',
+              shiftStart: currentShift.shiftId.startTime || '09:00',
+              shiftEnd: currentShift.shiftId.endTime || '17:00'
+            };
+          }
+
+          return {
+            _id: record._id,
+            employeeId: record.employeeId, // EMP003
+            employee: record.employee,
+            date: record.date,
+            checkIn: record.checkIn,
+            checkOut: record.checkOut,
+            status: record.status,
+            duration: record.duration,
+            location: record.location,
+            teamId: record.teamId,
+            ...shiftData,
+            checkInPhoto: record.checkInPhoto,
+            checkOutPhoto: record.checkOutPhoto
+          };
+        } catch (error) {
+          console.error(`Error processing attendance record ${record._id}:`, error);
+          return {
+            _id: record._id,
+            employeeId: record.employeeId,
+            employee: record.employee,
+            date: record.date,
+            checkIn: record.checkIn,
+            checkOut: record.checkOut,
+            status: record.status,
+            duration: record.duration,
+            location: record.location,
+            teamId: record.teamId,
+            shift: 'General Shift',
+            shiftName: 'General Shift',
+            shiftStart: '09:00',
+            shiftEnd: '17:00'
+          };
+        }
+      })
+    );
+
+    res.json(formattedAttendance);
   } catch (error) {
     console.error('Get attendance error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -203,23 +348,90 @@ const getAttendancePhoto = async (req, res) => {
   }
 };
 
-// Get today's attendance for an employee
+// In attendanceController.js - Fix getTodayAttendance function
 const getTodayAttendance = async (req, res) => {
   try {
     const { employeeId } = req.params;
     
+    console.log('getTodayAttendance called with employeeId:', employeeId);
+    
+    // Validate employeeId
+    if (!employeeId) {
+      return res.status(400).json({ message: 'Employee ID is required' });
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const attendance = await Attendance.findOne({
-      employeeId,
+    console.log('Looking for attendance with:', {
+      employeeId: employeeId,
       date: today
     });
 
-    res.json(attendance || {});
+    // FIX: Directly query by employeeId string (EMP003) without population
+    const attendance = await Attendance.findOne({
+      employeeId: employeeId, // Use the string directly (EMP003)
+      date: today
+    });
+
+    console.log('Found attendance record:', attendance);
+
+    if (!attendance) {
+      console.log('No attendance record found for today');
+      return res.json(null);
+    }
+
+    // Get shift data separately without population
+    let shiftData = {
+      shift: 'General Shift',
+      shiftName: 'General Shift',
+      shiftStart: '09:00',
+      shiftEnd: '17:00'
+    };
+
+    try {
+      const EmployeeShift = require('../models/attendance/EmployeeShift');
+      const currentShift = await EmployeeShift.findOne({
+        employeeId: employeeId, // Use string directly
+        isActive: true
+      }).populate('shiftId').lean();
+
+      if (currentShift && currentShift.shiftId) {
+        shiftData = {
+          shift: currentShift.shiftId.name || 'General Shift',
+          shiftName: currentShift.shiftId.name || 'General Shift',
+          shiftStart: currentShift.shiftId.startTime || '09:00',
+          shiftEnd: currentShift.shiftId.endTime || '17:00'
+        };
+      }
+    } catch (shiftError) {
+      console.error('Error fetching shift data:', shiftError);
+      // Continue with default shift data
+    }
+
+    const formattedAttendance = {
+      ...attendance.toObject(),
+      ...shiftData
+    };
+
+    console.log('Returning formatted attendance:', formattedAttendance);
+    res.json(formattedAttendance);
+
   } catch (error) {
     console.error('Get today attendance error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    
+    // More specific error messages
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        message: 'Invalid employee ID format',
+        error: error.message 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
 
