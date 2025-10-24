@@ -35,8 +35,13 @@ const PayrollSection = () => {
   const [currentPayroll, setCurrentPayroll] = useState([]);
   const [activeTab, setActiveTab] = useState("employees");
   const [selectedMonthHistory, setSelectedMonthHistory] = useState("");
+  const [selectedYearHistory, setSelectedYearHistory] = useState("");
   const [loading, setLoading] = useState(false);
   const [payrollHistoryLoading, setPayrollHistoryLoading] = useState(false);
+  const [generatingPayslip, setGeneratingPayslip] = useState(null);
+  const [runPayrollLoading, setRunPayrollLoading] = useState(false);
+  const [showPayrollResults, setShowPayrollResults] = useState(false);
+  const [payrollResults, setPayrollResults] = useState(null);
 
   const months = [
     "January",
@@ -55,6 +60,12 @@ const PayrollSection = () => {
 
   const years = [2023, 2024, 2025];
 
+  // API base URL - change this based on your environment
+  const API_BASE =
+    process.env.NODE_ENV === "production"
+      ? "" // Use relative URLs in production
+      : "http://localhost:5000"; // Use absolute URLs in development
+
   useEffect(() => {
     fetchEmployees();
     fetchPayrollHistory();
@@ -63,7 +74,7 @@ const PayrollSection = () => {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/payroll/employees");
+      const response = await fetch(`${API_BASE}/api/payroll/employees`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -92,7 +103,7 @@ const PayrollSection = () => {
   const fetchPayrollHistory = async () => {
     try {
       setPayrollHistoryLoading(true);
-      const response = await fetch("/api/payroll/history");
+      const response = await fetch(`${API_BASE}/api/payroll/history`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -110,7 +121,9 @@ const PayrollSection = () => {
 
   const fetchPayrollByMonth = async (month, year) => {
     try {
-      const response = await fetch(`/api/payroll/month/${month}/${year}`);
+      const response = await fetch(
+        `${API_BASE}/api/payroll/month/${month}/${year}`
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -123,6 +136,7 @@ const PayrollSection = () => {
       const data = await response.json();
       setCurrentPayroll(data || []);
       setSelectedMonthHistory(month);
+      setSelectedYearHistory(year);
     } catch (error) {
       console.error("Error fetching payroll data:", error);
       setCurrentPayroll([]);
@@ -155,8 +169,8 @@ const PayrollSection = () => {
     }
 
     try {
-      setLoading(true);
-      const response = await fetch("/api/payroll/run", {
+      setRunPayrollLoading(true);
+      const response = await fetch(`${API_BASE}/api/payroll/run`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -172,15 +186,16 @@ const PayrollSection = () => {
       }
 
       const data = await response.json();
+      setPayrollResults(data);
+      setShowPayrollResults(true);
 
       toast({
         title: "Success",
-        description: data.message,
+        description: `${data.message} (${data.createdCount} created, ${data.updatedCount} updated)`,
       });
 
+      // Refresh payroll history in background
       fetchPayrollHistory();
-      fetchPayrollByMonth(selectedMonth, selectedYear);
-      setActiveTab("history");
     } catch (error) {
       console.error("Error running payroll:", error);
       toast({
@@ -189,7 +204,7 @@ const PayrollSection = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setRunPayrollLoading(false);
     }
   };
 
@@ -200,7 +215,7 @@ const PayrollSection = () => {
     deductions
   ) => {
     try {
-      const response = await fetch("/api/payroll/salary", {
+      const response = await fetch(`${API_BASE}/api/payroll/salary`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -237,7 +252,10 @@ const PayrollSection = () => {
 
   const handleGeneratePayslip = async (payrollId, employeeName) => {
     try {
-      const response = await fetch(`/api/payroll/payslip/${payrollId}`);
+      setGeneratingPayslip(payrollId);
+      const response = await fetch(
+        `${API_BASE}/api/payroll/payslip/${payrollId}`
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -248,15 +266,17 @@ const PayrollSection = () => {
 
       toast({
         title: "Success",
-        description: "Payslip generated successfully",
+        description: "Payslip downloaded successfully",
       });
     } catch (error) {
       console.error("Error generating payslip:", error);
       toast({
         title: "Error",
-        description: "Failed to generate payslip",
+        description: "Failed to download payslip",
         variant: "destructive",
       });
+    } finally {
+      setGeneratingPayslip(null);
     }
   };
 
@@ -289,16 +309,20 @@ const PayrollSection = () => {
     // Add line separator
     doc.line(20, 95, 190, 95);
 
-    // Salary Breakdown
+    // Salary Breakdown - Using "Rs." instead of rupee symbol for PDF compatibility
     doc.setFontSize(12);
     doc.setFont(undefined, "bold");
     doc.text("SALARY BREAKDOWN", 20, 105);
     doc.setFont(undefined, "normal");
 
     doc.setFontSize(10);
-    doc.text(`Basic Salary: ₹${payslipData.basicSalary.toFixed(2)}`, 30, 115);
-    doc.text(`Allowances: ₹${payslipData.allowances.toFixed(2)}`, 30, 122);
-    doc.text(`Deductions: ₹${payslipData.deductions.toFixed(2)}`, 30, 129);
+    doc.text(
+      `Basic Salary: Rs. ${payslipData.basicSalary.toFixed(2)}`,
+      30,
+      115
+    );
+    doc.text(`Allowances: Rs. ${payslipData.allowances.toFixed(2)}`, 30, 122);
+    doc.text(`Deductions: Rs. ${payslipData.deductions.toFixed(2)}`, 30, 129);
 
     // Add line for total
     doc.setDrawColor(100, 100, 100);
@@ -306,7 +330,7 @@ const PayrollSection = () => {
 
     doc.setFontSize(12);
     doc.setFont(undefined, "bold");
-    doc.text(`NET PAY: ₹${payslipData.netPay.toFixed(2)}`, 30, 145);
+    doc.text(`NET PAY: Rs. ${payslipData.netPay.toFixed(2)}`, 30, 145);
     doc.setFont(undefined, "normal");
 
     // Footer
@@ -322,6 +346,11 @@ const PayrollSection = () => {
     doc.save(
       `payslip-${employeeName}-${payslipData.month}-${payslipData.year}.pdf`
     );
+  };
+
+  const handleRunNewPayroll = () => {
+    setShowPayrollResults(false);
+    setPayrollResults(null);
   };
 
   return (
@@ -345,7 +374,11 @@ const PayrollSection = () => {
           </Button>
           <Button
             variant={activeTab === "run" ? "default" : "outline"}
-            onClick={() => setActiveTab("run")}
+            onClick={() => {
+              setActiveTab("run");
+              setShowPayrollResults(false);
+              setPayrollResults(null);
+            }}
             className="px-4 py-2"
           >
             Run Payroll
@@ -443,80 +476,205 @@ const PayrollSection = () => {
       {activeTab === "run" && (
         <Card className="shadow-lg">
           <CardHeader className="bg-gray-50 border-b">
-            <CardTitle className="text-xl">Run Payroll</CardTitle>
+            <CardTitle className="text-xl">
+              {showPayrollResults ? "Payroll Results" : "Run Payroll"}
+            </CardTitle>
             <p className="text-sm text-gray-600">
-              Process payroll for all active employees for the selected month
+              {showPayrollResults
+                ? `Payroll processed for ${selectedMonth} ${selectedYear}`
+                : "Process payroll for all active employees for the selected month"}
             </p>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="space-y-2">
-                <Label htmlFor="month" className="text-sm font-medium">
-                  Month
-                </Label>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((month) => (
-                      <SelectItem key={month} value={month}>
-                        {month}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="year" className="text-sm font-medium">
-                  Year
-                </Label>
-                <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {years.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Button
-              onClick={handleRunPayroll}
-              className="w-full py-3 text-lg font-semibold"
-              disabled={
-                loading ||
-                !selectedMonth ||
-                !selectedYear ||
-                employees.length === 0
-              }
-              size="lg"
-            >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Processing Payroll...
+            {!showPayrollResults ? (
+              // RUN PAYROLL FORM
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  <div className="space-y-2">
+                    <Label htmlFor="month" className="text-sm font-medium">
+                      Month
+                    </Label>
+                    <Select
+                      value={selectedMonth}
+                      onValueChange={setSelectedMonth}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map((month) => (
+                          <SelectItem key={month} value={month}>
+                            {month}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="year" className="text-sm font-medium">
+                      Year
+                    </Label>
+                    <Select
+                      value={selectedYear}
+                      onValueChange={setSelectedYear}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              ) : employees.length === 0 ? (
-                "No Employees Available"
-              ) : (
-                `Run Payroll for ${selectedMonth} ${selectedYear}`
-              )}
-            </Button>
 
-            {employees.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <span>Employees to be Processed</span>
-                  <Badge variant="secondary">
-                    {employees.length} active employees
-                  </Badge>
-                </h3>
+                <Button
+                  onClick={handleRunPayroll}
+                  className="w-full py-3 text-lg font-semibold"
+                  disabled={
+                    runPayrollLoading ||
+                    !selectedMonth ||
+                    !selectedYear ||
+                    employees.length === 0
+                  }
+                  size="lg"
+                >
+                  {runPayrollLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Processing Payroll...
+                    </div>
+                  ) : employees.length === 0 ? (
+                    "No Employees Available"
+                  ) : (
+                    `Run Payroll for ${selectedMonth} ${selectedYear}`
+                  )}
+                </Button>
+
+                {employees.length > 0 && (
+                  <div className="mt-8">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <span>Employees to be Processed</span>
+                      <Badge variant="secondary">
+                        {employees.length} active employees
+                      </Badge>
+                    </h3>
+                    <div className="border rounded-lg overflow-hidden">
+                      <Table>
+                        <TableHeader className="bg-gray-50">
+                          <TableRow>
+                            <TableHead className="font-semibold">
+                              Employee ID
+                            </TableHead>
+                            <TableHead className="font-semibold">
+                              Name
+                            </TableHead>
+                            <TableHead className="font-semibold">
+                              Department
+                            </TableHead>
+                            <TableHead className="font-semibold text-right">
+                              Basic Salary
+                            </TableHead>
+                            <TableHead className="font-semibold text-right">
+                              Allowances
+                            </TableHead>
+                            <TableHead className="font-semibold text-right">
+                              Deductions
+                            </TableHead>
+                            <TableHead className="font-semibold text-right">
+                              Net Pay
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {employees.slice(0, 5).map((employee) => (
+                            <TableRow
+                              key={employee.employeeId}
+                              className="hover:bg-gray-50"
+                            >
+                              <TableCell className="font-medium">
+                                {employee.employeeId}
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <div className="font-medium">
+                                    {employee.name}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {employee.email}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>{employee.department}</TableCell>
+                              <TableCell className="text-right">
+                                ₹{employee.basicSalary.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                ₹{employee.allowances.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                ₹{employee.deductions.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-green-600">
+                                ₹{employee.netPay.toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      {employees.length > 5 && (
+                        <div className="text-center py-3 text-sm text-gray-600 bg-gray-50 border-t">
+                          ... and {employees.length - 5} more employees
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              // PAYROLL RESULTS
+              <>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-green-800">
+                        Payroll Processed Successfully!
+                      </h3>
+                      <p className="text-green-600">
+                        {payrollResults?.message ||
+                          `Payroll processed for ${selectedMonth} ${selectedYear}`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-green-700">
+                        Created:{" "}
+                        <strong>{payrollResults?.createdCount || 0}</strong> |
+                        Updated:{" "}
+                        <strong>{payrollResults?.updatedCount || 0}</strong>
+                      </p>
+                      <p className="text-sm text-green-700">
+                        Total Processed:{" "}
+                        <strong>
+                          {payrollResults?.processedEmployees || 0}
+                        </strong>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mb-6">
+                  <Button onClick={handleRunNewPayroll} variant="outline">
+                    Run New Payroll
+                  </Button>
+                  <Button onClick={() => setActiveTab("history")}>
+                    View All Payroll History
+                  </Button>
+                </div>
+
                 <div className="border rounded-lg overflow-hidden">
                   <Table>
                     <TableHeader className="bg-gray-50">
@@ -529,7 +687,7 @@ const PayrollSection = () => {
                           Department
                         </TableHead>
                         <TableHead className="font-semibold text-right">
-                          Basic Salary
+                          Basic
                         </TableHead>
                         <TableHead className="font-semibold text-right">
                           Allowances
@@ -540,49 +698,81 @@ const PayrollSection = () => {
                         <TableHead className="font-semibold text-right">
                           Net Pay
                         </TableHead>
+                        <TableHead className="font-semibold text-center">
+                          Status
+                        </TableHead>
+                        <TableHead className="font-semibold text-center">
+                          Download Payslip
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {employees.slice(0, 5).map((employee) => (
-                        <TableRow
-                          key={employee.employeeId}
-                          className="hover:bg-gray-50"
-                        >
-                          <TableCell className="font-medium">
-                            {employee.employeeId}
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{employee.name}</div>
-                              <div className="text-sm text-gray-500">
-                                {employee.email}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>{employee.department}</TableCell>
-                          <TableCell className="text-right">
-                            ₹{employee.basicSalary.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ₹{employee.allowances.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ₹{employee.deductions.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">
-                            ₹{employee.netPay.toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {payrollResults?.payrolls?.map((payroll) => {
+                        const employee = employees.find(
+                          (emp) => emp.employeeId === payroll.employeeId
+                        );
+                        return (
+                          <TableRow
+                            key={payroll._id || payroll.employeeId}
+                            className="hover:bg-gray-50"
+                          >
+                            <TableCell className="font-medium">
+                              {payroll.employeeId}
+                            </TableCell>
+                            <TableCell>{employee?.name || "N/A"}</TableCell>
+                            <TableCell>
+                              {employee?.department || "N/A"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ₹{payroll.basicSalary?.toFixed(2) || "0.00"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ₹{payroll.allowances?.toFixed(2) || "0.00"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ₹{payroll.deductions?.toFixed(2) || "0.00"}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-green-600">
+                              ₹{payroll.netPay?.toFixed(2) || "0.00"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="default">
+                                {payroll.status || "processed"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  handleGeneratePayslip(
+                                    payroll._id,
+                                    employee?.name || "Employee"
+                                  )
+                                }
+                                variant="outline"
+                                disabled={generatingPayslip === payroll._id}
+                                className="min-w-[140px] whitespace-nowrap"
+                              >
+                                {generatingPayslip === payroll._id ? (
+                                  <div className="flex items-center gap-1">
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                                    Generating...
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <span>📄</span>
+                                    <span>Download Payslip</span>
+                                  </div>
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
-                  {employees.length > 5 && (
-                    <div className="text-center py-3 text-sm text-gray-600 bg-gray-50 border-t">
-                      ... and {employees.length - 5} more employees
-                    </div>
-                  )}
                 </div>
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -614,7 +804,8 @@ const PayrollSection = () => {
                         <Card
                           key={`${history._id.month}-${history._id.year}`}
                           className={`cursor-pointer transition-all hover:shadow-md border-2 ${
-                            selectedMonthHistory === history._id.month
+                            selectedMonthHistory === history._id.month &&
+                            selectedYearHistory === history._id.year
                               ? "border-blue-500 bg-blue-50"
                               : "border-gray-200"
                           }`}
@@ -632,7 +823,8 @@ const PayrollSection = () => {
                               </h3>
                               <Badge
                                 variant={
-                                  selectedMonthHistory === history._id.month
+                                  selectedMonthHistory === history._id.month &&
+                                  selectedYearHistory === history._id.year
                                     ? "default"
                                     : "secondary"
                                 }
@@ -647,9 +839,9 @@ const PayrollSection = () => {
                               </span>
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
-                              Processed:{" "}
+                              Last Updated:{" "}
                               {new Date(
-                                history.processedDate
+                                history.lastUpdated
                               ).toLocaleDateString()}
                             </p>
                           </CardContent>
@@ -667,16 +859,24 @@ const PayrollSection = () => {
                   )}
                 </div>
 
-                {currentPayroll.length > 0 && (
+                {currentPayroll.length > 0 ? (
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold">
                         Payroll Details for {selectedMonthHistory}{" "}
-                        {currentPayroll[0]?.year}
+                        {selectedYearHistory}
                       </h3>
-                      <Badge variant="default">
-                        {currentPayroll.length} employees processed
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">
+                          {currentPayroll.length} employees processed
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Last updated:{" "}
+                          {new Date(
+                            currentPayroll[0]?.updatedAt
+                          ).toLocaleDateString()}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="border rounded-lg overflow-hidden">
                       <Table>
@@ -753,8 +953,20 @@ const PayrollSection = () => {
                                     )
                                   }
                                   variant="outline"
+                                  disabled={generatingPayslip === payroll._id}
+                                  className="min-w-[140px] whitespace-nowrap"
                                 >
-                                  📄 Payslip
+                                  {generatingPayslip === payroll._id ? (
+                                    <div className="flex items-center gap-1">
+                                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                                      Generating...
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      <span>📄</span>
+                                      <span>Download Payslip</span>
+                                    </div>
+                                  )}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -762,6 +974,27 @@ const PayrollSection = () => {
                         </TableBody>
                       </Table>
                     </div>
+                  </div>
+                ) : selectedMonthHistory && selectedYearHistory ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-4xl mb-4">📊</div>
+                    <p className="text-lg">
+                      No payroll data found for {selectedMonthHistory}{" "}
+                      {selectedYearHistory}
+                    </p>
+                    <p className="text-sm">
+                      Run payroll for this month to see details here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-4xl mb-4">👆</div>
+                    <p className="text-lg">
+                      Select a payroll period to view details
+                    </p>
+                    <p className="text-sm">
+                      Click on any payroll card above to view the details.
+                    </p>
                   </div>
                 )}
               </>
@@ -830,119 +1063,102 @@ const EmployeeSalaryRow = ({ employee, onUpdateSalary }) => {
     }));
   };
 
-  const netPay = isEditing
-    ? formData.basicSalary + formData.allowances - formData.deductions
-    : employee.netPay;
+  const netPay =
+    formData.basicSalary + formData.allowances - formData.deductions;
 
   return (
-    <TableRow className="hover:bg-gray-50 transition-colors">
-      <TableCell className="font-medium py-4">{employee.employeeId}</TableCell>
-      <TableCell className="py-4">
+    <TableRow className="hover:bg-gray-50">
+      <TableCell className="font-medium">{employee.employeeId}</TableCell>
+      <TableCell>
         <div>
-          <div className="font-medium text-gray-900">{employee.name}</div>
+          <div className="font-medium">{employee.name}</div>
           <div className="text-sm text-gray-500">{employee.email}</div>
         </div>
       </TableCell>
-      <TableCell className="py-4">{employee.department}</TableCell>
-      <TableCell className="py-4">{employee.designation}</TableCell>
-      <TableCell className="py-4">
+      <TableCell>{employee.department}</TableCell>
+      <TableCell>{employee.designation}</TableCell>
+      <TableCell>
         <Badge
           variant={
-            employee.employmentType === "Permanent" ? "default" : "secondary"
+            employee.employmentType === "Full-time" ? "default" : "secondary"
           }
-          className="text-xs"
         >
           {employee.employmentType}
         </Badge>
       </TableCell>
-      <TableCell className="py-4">
+      <TableCell>
         <Badge
           variant={employee.status === "active" ? "default" : "destructive"}
-          className="text-xs"
         >
           {employee.status}
         </Badge>
       </TableCell>
-
-      {isEditing ? (
-        <>
-          <TableCell className="py-4">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.basicSalary}
-              onChange={(e) => handleChange("basicSalary", e.target.value)}
-              className="w-28 text-right"
-              placeholder="0.00"
-            />
-          </TableCell>
-          <TableCell className="py-4">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.allowances}
-              onChange={(e) => handleChange("allowances", e.target.value)}
-              className="w-28 text-right"
-              placeholder="0.00"
-            />
-          </TableCell>
-          <TableCell className="py-4">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.deductions}
-              onChange={(e) => handleChange("deductions", e.target.value)}
-              className="w-28 text-right"
-              placeholder="0.00"
-            />
-          </TableCell>
-          <TableCell className="py-4 text-right font-semibold text-green-600">
-            ₹{netPay.toFixed(2)}
-          </TableCell>
-          <TableCell className="py-4">
-            <div className="flex gap-2 justify-center">
-              <Button
-                size="sm"
-                onClick={handleSave}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                ✓ Save
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleCancel}>
-                ✗ Cancel
-              </Button>
-            </div>
-          </TableCell>
-        </>
-      ) : (
-        <>
-          <TableCell className="py-4 text-right font-medium">
-            ₹{employee.basicSalary.toFixed(2)}
-          </TableCell>
-          <TableCell className="py-4 text-right">
-            ₹{employee.allowances.toFixed(2)}
-          </TableCell>
-          <TableCell className="py-4 text-right">
-            ₹{employee.deductions.toFixed(2)}
-          </TableCell>
-          <TableCell className="py-4 text-right font-semibold text-green-600">
-            ₹{employee.netPay.toFixed(2)}
-          </TableCell>
-          <TableCell className="py-4 text-center">
+      <TableCell className="text-right">
+        {isEditing ? (
+          <Input
+            type="number"
+            value={formData.basicSalary}
+            onChange={(e) => handleChange("basicSalary", e.target.value)}
+            className="w-24 text-right"
+            min="0"
+          />
+        ) : (
+          `₹${employee.basicSalary.toFixed(2)}`
+        )}
+      </TableCell>
+      <TableCell className="text-right">
+        {isEditing ? (
+          <Input
+            type="number"
+            value={formData.allowances}
+            onChange={(e) => handleChange("allowances", e.target.value)}
+            className="w-24 text-right"
+            min="0"
+          />
+        ) : (
+          `₹${employee.allowances.toFixed(2)}`
+        )}
+      </TableCell>
+      <TableCell className="text-right">
+        {isEditing ? (
+          <Input
+            type="number"
+            value={formData.deductions}
+            onChange={(e) => handleChange("deductions", e.target.value)}
+            className="w-24 text-right"
+            min="0"
+          />
+        ) : (
+          `₹${employee.deductions.toFixed(2)}`
+        )}
+      </TableCell>
+      <TableCell className="text-right font-semibold text-green-600">
+        ₹{netPay.toFixed(2)}
+      </TableCell>
+      <TableCell className="text-center">
+        {isEditing ? (
+          <div className="flex gap-2 justify-center">
             <Button
               size="sm"
-              onClick={() => setIsEditing(true)}
-              variant="outline"
-              className="border-blue-200 text-blue-700 hover:bg-blue-50"
+              onClick={handleSave}
+              className="bg-green-600 hover:bg-green-700"
             >
-              ✏️ Edit Salary
+              Save
             </Button>
-          </TableCell>
-        </>
-      )}
+            <Button size="sm" variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => setIsEditing(true)}
+            variant="outline"
+          >
+            Edit
+          </Button>
+        )}
+      </TableCell>
     </TableRow>
   );
 };

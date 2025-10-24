@@ -10,6 +10,20 @@ const payrollSchema = new mongoose.Schema(
     month: {
       type: String,
       required: true,
+      enum: [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ],
     },
     year: {
       type: Number,
@@ -18,31 +32,27 @@ const payrollSchema = new mongoose.Schema(
     basicSalary: {
       type: Number,
       required: true,
+      default: 0,
     },
     allowances: {
       type: Number,
       required: true,
+      default: 0,
     },
     deductions: {
       type: Number,
       required: true,
+      default: 0,
     },
     netPay: {
       type: Number,
       required: true,
+      default: 0,
     },
     status: {
       type: String,
       enum: ["pending", "processed", "paid"],
       default: "processed",
-    },
-    payslipGenerated: {
-      type: Boolean,
-      default: false,
-    },
-    payslipData: {
-      type: Object,
-      default: {},
     },
   },
   {
@@ -50,7 +60,7 @@ const payrollSchema = new mongoose.Schema(
   }
 );
 
-// Compound index to ensure unique payroll per employee per month
+// Create compound index to ensure unique payroll per employee per month
 payrollSchema.index({ employeeId: 1, month: 1, year: 1 }, { unique: true });
 
 module.exports = mongoose.model("Payroll", payrollSchema);

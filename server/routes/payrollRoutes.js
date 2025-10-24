@@ -10,16 +10,16 @@ const {
   generatePayslip,
 } = require("../controllers/payrollController");
 
-// Get all employees with salary information
+// Get all employees with their salary info
 router.get("/employees", getEmployeesWithSalary);
 
 // Run payroll for a specific month
 router.post("/run", runPayroll);
 
-// Get payroll history
+// Get payroll history (all months with payroll)
 router.get("/history", getPayrollHistory);
 
-// Get payroll details for specific month
+// Get payroll details for a specific month
 router.get("/month/:month/:year", getPayrollByMonth);
 
 // Update employee salary
