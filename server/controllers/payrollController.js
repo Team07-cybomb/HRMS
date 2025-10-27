@@ -55,6 +55,8 @@ const runPayroll = async (req, res) => {
 
     const employees = await Employee.find({ status: "active" });
     const payrollResults = [];
+    let updatedCount = 0;
+    let createdCount = 0;
 
     for (const employee of employees) {
       const salaryInfo = await EmployeeSalary.findOne({
@@ -74,6 +76,7 @@ const runPayroll = async (req, res) => {
         });
 
         if (!existingPayroll) {
+          // Create new payroll record
           const payroll = new Payroll({
             employeeId: employee.employeeId,
             month,
@@ -86,8 +89,18 @@ const runPayroll = async (req, res) => {
 
           await payroll.save();
           payrollResults.push(payroll);
+          createdCount++;
         } else {
+          // Update existing payroll record with new salary data
+          existingPayroll.basicSalary = basicSalary;
+          existingPayroll.allowances = allowances;
+          existingPayroll.deductions = deductions;
+          existingPayroll.netPay = netPay;
+          existingPayroll.status = "processed"; // Reset status to processed
+
+          await existingPayroll.save();
           payrollResults.push(existingPayroll);
+          updatedCount++;
         }
       }
     }
@@ -97,6 +110,8 @@ const runPayroll = async (req, res) => {
       payrolls: payrollResults,
       totalEmployees: employees.length,
       processedEmployees: payrollResults.length,
+      createdCount,
+      updatedCount,
     });
   } catch (error) {
     console.error("Error in runPayroll:", error);
@@ -114,6 +129,7 @@ const getPayrollHistory = async (req, res) => {
           count: { $sum: 1 },
           totalNetPay: { $sum: "$netPay" },
           processedDate: { $max: "$createdAt" },
+          lastUpdated: { $max: "$updatedAt" },
         },
       },
       {
@@ -160,6 +176,7 @@ const getPayrollByMonth = async (req, res) => {
           deductions: payroll.deductions,
           netPay: payroll.netPay,
           status: payroll.status,
+          updatedAt: payroll.updatedAt,
         };
       })
     );
