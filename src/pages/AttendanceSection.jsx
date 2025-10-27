@@ -129,54 +129,56 @@ const AdminAttendanceSection = () => {
     setIsDetailsOpen(true);
   };
 
-  const handleExportData = async (type) => {
-    try {
-      let params = {
-        format: 'csv'
-      };
+// In AttendanceSection.jsx - Fix the handleExportData function
+const handleExportData = async (type) => {
+  try {
+    let params = {
+      format: 'csv'
+    };
 
-      switch (type) {
-        case 'daily':
-          params.startDate = selectedDate.toISOString().split('T')[0];
-          params.endDate = selectedDate.toISOString().split('T')[0];
-          break;
-        case 'weekly':
-          const weekStart = new Date(selectedDate);
-          weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekEnd.getDate() + 6);
-          params.startDate = weekStart.toISOString().split('T')[0];
-          params.endDate = weekEnd.toISOString().split('T')[0];
-          break;
-        case 'monthly':
-          const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-          const monthEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-          params.startDate = monthStart.toISOString().split('T')[0];
-          params.endDate = monthEnd.toISOString().split('T')[0];
-          break;
-        case 'custom':
-          params.startDate = reportFilters.startDate;
-          params.endDate = reportFilters.endDate;
-          if (reportFilters.department !== 'all') {
-            // Note: You'll need to implement department filtering in the backend
-          }
-          break;
-        default:
-          params.startDate = selectedDate.toISOString().split('T')[0];
-          params.endDate = selectedDate.toISOString().split('T')[0];
-      }
-
-      await exportAttendanceData(params);
-      
-    } catch (error) {
-      console.error('Export error:', error);
-      toast({
-        title: 'Export failed',
-        description: error.message,
-        variant: 'destructive'
-      });
+    switch (type) {
+      case 'daily':
+        params.startDate = selectedDate.toISOString().split('T')[0];
+        params.endDate = selectedDate.toISOString().split('T')[0];
+        break;
+      case 'weekly':
+        const weekStart = new Date(selectedDate);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        params.startDate = weekStart.toISOString().split('T')[0];
+        params.endDate = weekEnd.toISOString().split('T')[0];
+        break;
+      case 'monthly':
+        const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+        const monthEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+        params.startDate = monthStart.toISOString().split('T')[0];
+        params.endDate = monthEnd.toISOString().split('T')[0];
+        break;
+      case 'custom':
+        params.startDate = reportFilters.startDate;
+        params.endDate = reportFilters.endDate;
+        if (reportFilters.department !== 'all') {
+          params.department = reportFilters.department;
+        }
+        break;
+      default:
+        params.startDate = selectedDate.toISOString().split('T')[0];
+        params.endDate = selectedDate.toISOString().split('T')[0];
     }
-  };
+
+    console.log('Exporting with params:', params);
+    await exportAttendanceData(params);
+    
+  } catch (error) {
+    console.error('Export error:', error);
+    toast({
+      title: 'Export failed',
+      description: error.message || 'Failed to export data',
+      variant: 'destructive'
+    });
+  }
+};
 
   const handleDateChange = (date) => {
     setSelectedDate(date);
@@ -266,7 +268,7 @@ const getEmployeeDetails = (record) => {
   const renderOverview = () => (
   <div className="space-y-6">
     {/* Employee Filter Section - UPDATED */}
-    <div className="flex items-center space-x-4">
+    {/* <div className="flex items-center space-x-4">
       <div className="flex items-center space-x-2">
         <User className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm font-medium">Filter by Employee:</span>
@@ -302,7 +304,7 @@ const getEmployeeDetails = (record) => {
           Clear Filter
         </Button>
       )}
-    </div>
+    </div> */}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -362,7 +364,7 @@ const getEmployeeDetails = (record) => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50">
+        {/* <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -374,7 +376,7 @@ const getEmployeeDetails = (record) => {
               <CalendarDays className="w-8 h-8 text-purple-500" />
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Recent Attendance Table */}

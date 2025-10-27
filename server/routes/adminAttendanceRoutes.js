@@ -3,7 +3,7 @@ const express = require('express');
 const {
   getDashboardStats,
   getAttendanceData,
-  getAttendanceDetails, // Add this import
+  getAttendanceDetails,
   exportAttendanceData,
   getEmployees,
 } = require('../controllers/adminAttendanceController');
@@ -18,25 +18,37 @@ const {
   updateEmployeeAssignment
 } = require('../controllers/shiftController');
 
-// const { authMiddleware } = require('../middleware/authMiddleware');
-// const { adminMiddleware } = require('../middleware/adminAttendanceMiddleware');
+// ✅ CORRECTED IMPORTS - Match your actual file names
+const { authMiddleware } = require('../middleware/authMiddleware');
+const { adminMiddleware } = require('../middleware/adminAttendanceMiddleware');
 
 const router = express.Router();
 
-// Apply auth middleware to all routes
-// router.use(authMiddleware);
-// router.use(adminMiddleware);
+// ✅ Apply auth middleware to all routes
+router.use(authMiddleware);
+router.use(adminMiddleware);
 
 // Debug route to test if routes are working
 router.get('/test', (req, res) => {
-  res.json({ message: 'Admin routes are working!', user: req.user });
+  res.json({ 
+    message: 'Admin routes are working!', 
+    user: {
+      id: req.user.id,
+      name: req.user.name,
+      role: req.user.role
+    }
+  });
 });
 
 // Dashboard routes
 router.get('/dashboard/stats', getDashboardStats);
 router.get('/attendance/data', getAttendanceData);
-router.get('/attendance/:id', getAttendanceDetails); // Add this route for single record details
+
+// ✅ Export route MUST come before parameterized routes
 router.get('/attendance/export', exportAttendanceData);
+
+// ✅ Parameterized routes come AFTER specific routes
+router.get('/attendance/:id', getAttendanceDetails);
 
 // Employee routes
 router.get('/employees', getEmployees);
@@ -51,38 +63,5 @@ router.delete('/shifts/:id', deleteShift);
 router.post('/shifts/assign', assignShiftToEmployee);
 router.get('/shifts/assignments', getEmployeeAssignments);
 router.put('/shifts/assignments/:id', updateEmployeeAssignment);
-
-// Debug employee lookup route
-router.get('/debug/employee/:id', async (req, res) => {
-  try {
-    const Employee = require('../models/Employee');
-    const employee = await Employee.findById(req.params.id);
-    
-    if (!employee) {
-      // Try all users to see what's in DB
-      const allEmployees = await Employee.find({}).select('_id name email status').limit(10);
-      return res.status(404).json({ 
-        message: 'Employee not found', 
-        searchedId: req.params.id,
-        availableEmployees: allEmployees 
-      });
-    }
-    
-    res.json({ 
-      message: 'Employee found', 
-      employee: {
-        _id: employee._id,
-        name: employee.name,
-        email: employee.email,
-        status: employee.status
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      message: 'Error finding employee', 
-      error: error.message 
-    });
-  }
-});
 
 module.exports = router;

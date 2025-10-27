@@ -63,6 +63,8 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
       employeeId: suggestedId, 
       name: '', 
       email: '', 
+      email: '', // NEW FIELD
+      workPhone: '', // NEW FIELD
       department: '', 
       designation: '', 
       role: '',
@@ -71,6 +73,8 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
       sourceOfHire: 'Direct',
       location: '',
       dateOfJoining: '',
+      dateOfBirth: '', // NEW FIELD
+      maritalStatus: '', // NEW FIELD
       totalExperience: '',
       password: '' 
     }
@@ -127,7 +131,7 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
     await onSave(formData);
   };
 
-  return (
+ return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* First Row - 2 Columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -156,14 +160,27 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
           </div>
           
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Work Email</Label>
             <Input 
               id="email" 
               name="email" 
               type="email" 
+              placeholder="Company@mail.com"
               value={formData.email} 
               onChange={handleChange} 
               required 
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="personal email">Personal Email</Label>
+            <Input 
+              id="personal email" 
+              name="personal email" 
+              type="personal email" 
+              value={formData.personalEmail} 
+              onChange={handleChange} 
+              
             />
           </div>
 
@@ -177,7 +194,9 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               required 
             />
           </div>
+        </div>
 
+        <div className="space-y-4">
           <div>
             <Label htmlFor="designation">Designation</Label>
             <Input 
@@ -188,9 +207,47 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               required 
             />
           </div>
-        </div>
 
-        <div className="space-y-4">
+          <div>
+            <Label htmlFor="workPhone">Work Phone</Label>
+            <Input 
+              id="workPhone" 
+              name="workPhone" 
+              value={formData.workPhone} 
+              onChange={handleChange} 
+              placeholder="+1 (555) 123-4567"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="dateOfBirth">Date of Birth</Label>
+            <Input 
+              id="dateOfBirth" 
+              name="dateOfBirth" 
+              type="date" 
+              value={formData.dateOfBirth} 
+              onChange={handleChange} 
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="maritalStatus">Marital Status</Label>
+            <select 
+              id="maritalStatus" 
+              name="maritalStatus" 
+              value={formData.maritalStatus} 
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select Status</option>
+              <option value="Single">Single</option>
+              <option value="Married">Married</option>
+              <option value="Divorced">Divorced</option>
+              <option value="Widowed">Widowed</option>
+              <option value="Separated">Separated</option>
+            </select>
+          </div>
+
           <div>
             <Label htmlFor="role">Role</Label>
             <Input 
@@ -201,65 +258,71 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
               placeholder="e.g., Team Member, Team Lead, Manager"
             />
           </div>
-
-          <div>
-            <Label htmlFor="employmentType">Employment Type</Label>
-            <select 
-              id="employmentType" 
-              name="employmentType" 
-              value={formData.employmentType} 
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="Permanent">Permanent</option>
-              <option value="Contract">Contract</option>
-              <option value="Intern">Intern</option>
-              <option value="Temporary">Temporary</option>
-            </select>
-          </div>
-
-          <div>
-            <Label htmlFor="sourceOfHire">Source of Hire</Label>
-            <select 
-              id="sourceOfHire" 
-              name="sourceOfHire" 
-              value={formData.sourceOfHire} 
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="Direct">Direct</option>
-              <option value="Referral">Referral</option>
-              <option value="Agency">Agency</option>
-              <option value="Campus">Campus</option>
-              <option value="Job Portal">Job Portal</option>
-            </select>
-          </div>
-          
-          <div>
-            <Label htmlFor="location">Location</Label>
-            <Input 
-              id="location" 
-              name="location" 
-              value={formData.location} 
-              onChange={handleChange} 
-              placeholder="e.g., Cybomb Technologies LLP - Prime Plaza"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="dateOfJoining">Date of Joining</Label>
-            <Input 
-              id="dateOfJoining" 
-              name="dateOfJoining" 
-              type="date" 
-              value={formData.dateOfJoining} 
-              onChange={handleChange} 
-            />
-          </div>
         </div>
       </div>
 
       {/* Second Row - Additional Fields */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label htmlFor="employmentType">Employment Type</Label>
+          <select 
+            id="employmentType" 
+            name="employmentType" 
+            value={formData.employmentType} 
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="Permanent">Permanent</option>
+            <option value="Contract">Contract</option>
+            <option value="Intern">Intern</option>
+            <option value="Temporary">Temporary</option>
+          </select>
+        </div>
+
+        <div>
+          <Label htmlFor="sourceOfHire">Source of Hire</Label>
+          <select 
+            id="sourceOfHire" 
+            name="sourceOfHire" 
+            value={formData.sourceOfHire} 
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="Direct">Direct</option>
+            <option value="Referral">Referral</option>
+            <option value="Agency">Agency</option>
+            <option value="Campus">Campus</option>
+            <option value="Job Portal">Job Portal</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Third Row - Location and Dates */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label htmlFor="location">Location</Label>
+          <Input 
+            id="location" 
+            name="location" 
+            value={formData.location} 
+            onChange={handleChange} 
+            placeholder="e.g., Cybomb Technologies LLP - Prime Plaza"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="dateOfJoining">Date of Joining</Label>
+          <Input 
+            id="dateOfJoining" 
+            name="dateOfJoining" 
+            type="date" 
+            value={formData.dateOfJoining} 
+            onChange={handleChange} 
+          />
+        </div>
+      </div>
+
+      {/* Fourth Row - Experience and Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <Label htmlFor="totalExperience">Total Experience</Label>
@@ -360,7 +423,6 @@ const EmployeeForm = ({ employee, onSave, onCancel, suggestedId }) => {
         )}
       </div>
 
-      {/* Buttons */}
       <DialogFooter className="pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit">Save Employee</Button>
@@ -456,29 +518,65 @@ const EmployeeViewDialog = ({ employee, isOpen, onClose }) => {
 
           {/* Detailed Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Contact Information */}
-            <Card className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 border-0 shadow-sm">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
-                <Mail className="w-5 h-5 text-blue-600" />
-                Contact Information
-              </h3>
-              <div className="space-y-3">
+          
+          <Card className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 border-0 shadow-sm">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
+              <Mail className="w-5 h-5 text-blue-600" />
+              Contact Information
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                <Mail className="w-4 h-4 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-600">Personal Email</p>
+                  <p className="font-medium text-gray-900">{employee.email}</p>
+                </div>
+              </div>
+              {employee.email && (
                 <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
                   <Mail className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="text-sm text-gray-600">Work Email</p>
                     <p className="font-medium text-gray-900">{employee.email}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm text-gray-600">Phone</p>
-                    <p className="font-medium text-gray-900">Not provided</p>
-                  </div>
+              )}
+              <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                <Phone className="w-4 h-4 text-gray-400" />
+                <div>
+                  <p className="text-sm text-gray-600">Work Phone</p>
+                  <p className="font-medium text-gray-900">
+                    {employee.workPhone || 'Not provided'}
+                  </p>
                 </div>
               </div>
-            </Card>
+            </div>
+          </Card>
+
+        
+          <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 border-0 shadow-sm">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900">
+              <User className="w-5 h-5 text-orange-600" />
+              Personal Details
+            </h3>
+            <div className="space-y-3">
+              {employee.dateOfBirth && (
+                <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
+                  <span className="text-sm text-gray-600">Date of Birth</span>
+                  <span className="font-medium text-gray-900">
+                    {formatDate(employee.dateOfBirth)}
+                    {employee.age && ` (${employee.age} years)`}
+                  </span>
+                </div>
+              )}
+              {employee.maritalStatus && (
+                <div className="flex justify-between items-center p-3 bg-white rounded-lg border">
+                  <span className="text-sm text-gray-600">Marital Status</span>
+                  <span className="font-medium text-gray-900">{employee.maritalStatus}</span>
+                </div>
+              )}
+            </div>
+          </Card>
 
             {/* Work Information */}
             <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-0 shadow-sm">

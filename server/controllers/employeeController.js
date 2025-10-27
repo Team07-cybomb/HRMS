@@ -17,6 +17,8 @@ exports.addEmployee = async (req, res) => {
     const { 
       name, 
       email, 
+      personalEmail,
+      workPhone,
       department, 
       designation, 
       role,
@@ -25,6 +27,8 @@ exports.addEmployee = async (req, res) => {
       sourceOfHire,
       location,
       dateOfJoining,
+      dateOfBirth,
+      maritalStatus,
       totalExperience,
       employeeId, 
       password 
@@ -34,18 +38,17 @@ exports.addEmployee = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedEmployeeId = employeeId.trim();
 
-    // Check for duplicates with more specific queries
+    // Check for duplicates
     const [existingEmployeeByEmail, existingEmployeeById, existingUser] = await Promise.all([
       Employee.findOne({ email: normalizedEmail }),
       Employee.findOne({ employeeId: normalizedEmployeeId }),
       User.findOne({ email: normalizedEmail })
     ]);
 
-    // Detailed error messages
     if (existingEmployeeByEmail) {
       return res.status(400).json({ 
         error: 'Employee already exists',
-        details: `Email ${normalizedEmail} is already registered`,
+        details: `workEmail ${normalizedEmail} is already registered`,
         field: 'email'
       });
     }
@@ -61,18 +64,18 @@ exports.addEmployee = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ 
         error: 'User already exists',
-        details: `User account with email ${normalizedEmail} already exists`,
+        details: `User account with workEmail ${normalizedEmail} already exists`,
         field: 'email'
       });
     }
 
-    // Rest of your creation logic...
-    const employeePassword = password || "Password123";
-    
+    // Create employee
     const newEmployee = new Employee({ 
       employeeId: normalizedEmployeeId, 
       name, 
       email: normalizedEmail, 
+      personalEmail,
+      workPhone,
       department, 
       designation,
       role,
@@ -81,14 +84,22 @@ exports.addEmployee = async (req, res) => {
       sourceOfHire,
       location,
       dateOfJoining,
+      dateOfBirth,
+      maritalStatus,
       totalExperience
     });
     
     await newEmployee.save();
 
+    // Hash password before saving user
+    const employeePassword = password || "Password123";
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(employeePassword, saltRounds);
+
+    // Create user with hashed password
     const newUser = new User({ 
       email: normalizedEmail, 
-      password: employeePassword,
+      password: hashedPassword,
       role: 'employee', 
       employeeId: normalizedEmployeeId
     });
@@ -102,6 +113,67 @@ exports.addEmployee = async (req, res) => {
     });
   } catch (err) {
     console.error('Error adding employee:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// LOGIN employee
+exports.loginEmployee = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ 
+        error: 'Work email and password are required' 
+      });
+    }
+
+    // Normalize email
+    const normalizedEmail = normalizedEmail.toLowerCase().trim();
+
+    // Find user by workEmail
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      return res.status(401).json({ 
+        error: 'Invalid credentials' 
+      });
+    }
+
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
+        error: 'Invalid credentials' 
+      });
+    }
+
+    // Find employee details
+    const employee = await Employee.findOne({ email: normalizedEmail });
+    if (!employee) {
+      return res.status(404).json({ 
+        error: 'Employee record not found' 
+      });
+    }
+
+    // Login successful
+    res.json({
+      message: 'Login successful',
+      user: {
+        email: user.email,
+        role: user.role,
+        employeeId: user.employeeId
+      },
+      employee: {
+        name: employee.name,
+        department: employee.department,
+        designation: employee.designation,
+        employeeId: employee.employeeId
+      }
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -119,27 +191,39 @@ exports.deleteEmployee = async (req, res) => {
   }
 };
 
-// UPDATE employee
 exports.updateEmployee = async (req, res) => {
   try {
-    const { id } = req.params; // EMP001, EMP002 etc
+    const { id } = req.params;
     const updateData = req.body;
 
-    // Find employee by employeeId
     const employee = await Employee.findOne({ employeeId: id });
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
 
-    // If password is being updated, only update User collection
+    // If password is being updated, hash it and update User collection
     if (updateData.password) {
-      // Update User password (plain - will be hashed by User model's pre-save)
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(updateData.password, saltRounds);
+      
       await User.findOneAndUpdate(
         { employeeId: id },
-        { password: updateData.password }
+        { password: hashedPassword }
       );
-      // Remove password from updateData so we don't save it in Employee collection
+      
       delete updateData.password;
+    }
+
+    // Update workEmail in both collections if changed
+    if (updateData.email) {
+      const normalizedEmail = updateData.email.toLowerCase().trim();
+      updateData.email = normalizedEmail;
+      
+      // Also update in User collection
+      await User.findOneAndUpdate(
+        { employeeId: id },
+        { email: normalizedEmail }
+      );
     }
 
     // Update other fields in Employee collection
@@ -149,7 +233,10 @@ exports.updateEmployee = async (req, res) => {
 
     await employee.save();
 
-    res.status(200).json({ message: 'Employee updated successfully', employee });
+    res.status(200).json({ 
+      message: 'Employee updated successfully', 
+      employee 
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error', error: err.message });
