@@ -18,7 +18,7 @@ const authMiddleware = (req, res, next) => {
       role: decoded.role,
       roles: decoded.roles || [decoded.role],
       teamId: decoded.teamId || 1,
-      email: decoded.email || 'user@example.com', // Fallback email
+      email: decoded.email || 'user@example.com', // Fallback 
       name: decoded.name || decoded.email?.split('@')[0] || 'User' // Fallback name
     };
     

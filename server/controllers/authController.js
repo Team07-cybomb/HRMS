@@ -5,16 +5,20 @@ const jwt = require('jsonwebtoken');
 
 // REGISTER USER (manual ID)
 exports.registerUser = async (req, res) => {
-  const { name, email, password, role, adminId, hrId, employeeId } = req.body;
+  const { name, 
+email, password, role, adminId, hrId, employeeId } = req.body;
 
   try {
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ 
+email });
     if (existingUser)
       return res.status(400).json({ message: 'User already exists' });
 
     const newUser = new User({
-      name: name || email.split('@')[0], // Provide default name if not provided
-      email,
+      name: name || 
+email.split('@')[0], // Provide default name if not provided
+      
+email,
       password,
       role,
       adminId,
@@ -32,7 +36,8 @@ exports.registerUser = async (req, res) => {
 
     res.status(201).json({
       _id: newUser._id,
-      email: newUser.email,
+      
+email: newUser.email,
       role: newUser.role,
       adminId: newUser.adminId,
       hrId: newUser.hrId,
@@ -47,17 +52,19 @@ exports.registerUser = async (req, res) => {
 
 // LOGIN USER
 exports.loginUser = async (req, res) => {
-  const { email, password } = req.body;
+  const { 
+email, password } = req.body;
 
   // Validate input
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' });
+  if (!
+email || !password) {
+    return res.status(400).json({ message: 'email and password are required' });
   }
 
   try {
-    console.log('Login attempt for email:', email);
+    console.log('Login attempt for workEmail:', email);
     
-    // 1️⃣ Find user by email
+    // 1️⃣ Find user by workEmail
     const user = await User.findOne({ email });
     if (!user) {
       console.log('User not found in User collection');
@@ -109,7 +116,8 @@ exports.loginUser = async (req, res) => {
     // 5️⃣ Respond with user data + token
     res.status(200).json({
       _id: user._id,
-      email: user.email,
+      
+email: user.email,
       role: user.role,
       adminId: user.adminId || null,
       hrId: user.hrId || null,

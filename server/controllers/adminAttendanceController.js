@@ -250,17 +250,25 @@ const getAttendanceData = async (req, res) => {
   }
 };
 
-// Get single attendance record details
+// In adminAttendanceController.js - Update getAttendanceDetails function
 const getAttendanceDetails = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // ⚠️ Add validation for ObjectId format
+    if (id === 'export' || id === 'data' || id === 'stats') {
+      return res.status(400).json({ 
+        message: 'Invalid attendance record ID',
+        details: 'The provided ID matches a route name, not a valid record ID'
+      });
+    }
 
     // Check if it's an absent record ID format
     if (id.startsWith('absent-')) {
       // Extract employee ID and date from absent record ID
       const parts = id.split('-');
       const employeeId = parts[1];
-      const date = parts.slice(2).join('-'); // Handle dates with hyphens
+      const date = parts.slice(2).join('-');
 
       // Find employee
       const employee = await Employee.findById(employeeId)
@@ -311,6 +319,15 @@ const getAttendanceDetails = async (req, res) => {
     res.json(attendanceRecord);
   } catch (error) {
     console.error('Get attendance details error:', error);
+    
+    // Handle CastError specifically
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        message: 'Invalid attendance record ID format',
+        error: `Cannot cast "${error.value}" to ObjectId`
+      });
+    }
+    
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -331,7 +348,7 @@ const getEmployees = async (req, res) => {
   }
 };
 
-// In adminAttendanceController.js - Update exportAttendanceData function
+// In adminAttendanceController.js - Fix exportAttendanceData function
 const exportAttendanceData = async (req, res) => {
   try {
     const { 
@@ -344,6 +361,12 @@ const exportAttendanceData = async (req, res) => {
     } = req.query;
 
     const shouldIncludeAbsent = includeAbsent === 'true';
+
+    // ✅ SAFELY handle user data with fallbacks
+    const userId = req.user?.id || req.user?._id || 'system-export';
+    const userName = req.user?.name || req.user?.email || 'System User';
+
+    console.log('Export request by user:', { userId, userName, role: req.user?.role });
 
     // Date range filter
     const start = startDate ? new Date(startDate) : new Date();
@@ -436,8 +459,7 @@ const exportAttendanceData = async (req, res) => {
       );
     }
 
-    // Rest of export logic remains the same...
-    // Create report record
+    // ✅ Create report record with safe user data
     const report = new AttendanceReport({
       reportType: 'custom',
       title: `Attendance Export - ${startDate} to ${endDate}${shouldIncludeAbsent ? ' (with absent)' : ''}`,
@@ -447,8 +469,8 @@ const exportAttendanceData = async (req, res) => {
         teamIds: teamId ? [parseInt(teamId)] : [],
         includeAbsent: shouldIncludeAbsent
       },
-      generatedBy: req.user.id,
-      generatedByName: req.user.name,
+      generatedBy: userId,
+      generatedByName: userName,
       data: { recordCount: finalData.length }
     });
 
@@ -468,7 +490,8 @@ const exportAttendanceData = async (req, res) => {
       metadata: {
         recordCount: finalData.length,
         includeAbsent: shouldIncludeAbsent,
-        dateRange: `${startDate} to ${endDate}`
+        dateRange: `${startDate} to ${endDate}`,
+        generatedBy: userName
       }
     });
 

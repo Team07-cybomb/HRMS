@@ -1,4 +1,6 @@
+// controllers/teamController.js
 const Team = require('../models/Team.js');
+const Employee = require('../models/Employee.js');
 
 // GET all teams
 exports.getTeams = async (req, res) => {
@@ -34,9 +36,23 @@ exports.createTeam = async (req, res) => {
       return res.status(400).json({ error: 'Team already exists' });
     }
 
+    // Validate that lead exists in employees
+    const leadEmployee = await Employee.findOne({ employeeId: lead });
+    if (!leadEmployee) {
+      return res.status(400).json({ error: 'Team lead not found in employees' });
+    }
+
+    // Validate members exist in employees
+    if (members && members.length > 0) {
+      const memberEmployees = await Employee.find({ employeeId: { $in: members } });
+      if (memberEmployees.length !== members.length) {
+        return res.status(400).json({ error: 'One or more members not found in employees' });
+      }
+    }
+
     const newTeam = new Team({
       name,
-      lead,
+      lead, // This is now employeeId like "EMPID003"
       department,
       location,
       budget: budget || '',
@@ -63,6 +79,22 @@ exports.updateTeam = async (req, res) => {
     const team = await Team.findById(id);
     if (!team) {
       return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Validate lead if being updated
+    if (updateData.lead) {
+      const leadEmployee = await Employee.findOne({ employeeId: updateData.lead });
+      if (!leadEmployee) {
+        return res.status(400).json({ error: 'Team lead not found in employees' });
+      }
+    }
+
+    // Validate members if being updated
+    if (updateData.members && updateData.members.length > 0) {
+      const memberEmployees = await Employee.find({ employeeId: { $in: updateData.members } });
+      if (memberEmployees.length !== updateData.members.length) {
+        return res.status(400).json({ error: 'One or more members not found in employees' });
+      }
     }
 
     Object.keys(updateData).forEach(key => {
@@ -100,11 +132,17 @@ exports.deleteTeam = async (req, res) => {
 exports.addMember = async (req, res) => {
   try {
     const { id } = req.params;
-    const { employeeId } = req.body;
+    const { employeeId } = req.body; // This is employeeId like "EMPID003"
 
     const team = await Team.findById(id);
     if (!team) {
       return res.status(404).json({ error: 'Team not found' });
+    }
+
+    // Validate employee exists
+    const employee = await Employee.findOne({ employeeId });
+    if (!employee) {
+      return res.status(400).json({ error: 'Employee not found' });
     }
 
     if (team.members.includes(employeeId)) {
@@ -128,7 +166,7 @@ exports.addMember = async (req, res) => {
 exports.removeMember = async (req, res) => {
   try {
     const { id } = req.params;
-    const { employeeId } = req.body;
+    const { employeeId } = req.body; // This is employeeId like "EMPID003"
 
     const team = await Team.findById(id);
     if (!team) {

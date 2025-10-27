@@ -506,55 +506,84 @@ export const AdminAttendanceProvider = ({ children }) => {
     }
   }, [hasAdminAccess]);
 
-  // Export attendance data
-  const exportAttendanceData = useCallback(async (params = {}) => {
-    if (!hasAdminAccess()) return;
-
-    try {
-      const queryParams = new URLSearchParams(params);
-      const response = await fetch(`${API_BASE}/admin/attendance/export?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('hrms_token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Export failed');
+// In AdminAttendanceContext.jsx - Fix the exportAttendanceData function
+const exportAttendanceData = async (params = {}) => {
+  try {
+    const token = localStorage.getItem('hrms_token');
+    
+    // Build query string from params
+    const queryParams = new URLSearchParams();
+    
+    Object.keys(params).forEach(key => {
+      if (params[key]) {
+        queryParams.append(key, params[key]);
       }
+    });
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
-      const contentDisposition = response.headers.get('content-disposition');
-      let filename = `attendance-export-${new Date().toISOString().split('T')[0]}.csv`;
-      
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
-        if (filenameMatch) filename = filenameMatch[1];
+    // Use the correct endpoint - /admin/attendance/export
+    const response = await fetch(`http://localhost:5000/api/admin/attendance/export?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      // Handle HTML error responses (like 404 pages)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        throw new Error('Server returned HTML error page. Please check if backend is running.');
       }
       
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({
-        title: "Export successful",
-        description: "Attendance data has been exported"
-      });
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast({
-        title: "Export failed",
-        description: error.message,
-        variant: "destructive"
-      });
-      throw error;
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Export failed with status: ${response.status}`);
     }
-  }, [hasAdminAccess]);
+
+    // Handle CSV download
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    
+    // Generate filename
+    const filename = `attendance-${params.startDate}-to-${params.endDate}.csv`;
+    a.download = filename;
+    
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    toast({
+      title: 'Export Successful',
+      description: `Data exported to ${filename}`,
+      variant: 'default'
+    });
+
+  } catch (error) {
+    console.error('Export error:', error);
+    
+    // More specific error messages
+    let errorMessage = error.message || 'Failed to export data';
+    
+    if (error.message.includes('HTML error page')) {
+      errorMessage = 'Backend server is not responding. Please make sure the server is running on localhost:5000';
+    } else if (error.message.includes('Failed to fetch')) {
+      errorMessage = 'Cannot connect to server. Please check if the backend is running.';
+    } else if (error.message.includes('404')) {
+      errorMessage = 'Export endpoint not found. Please check server routes.';
+    }
+    
+    toast({
+      title: 'Export Failed',
+      description: errorMessage,
+      variant: 'destructive'
+    });
+    throw error;
+  }
+};
 
   // Update filters
   const updateFilters = useCallback((newFilters) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { Card } from '@/components/ui/card';
@@ -95,7 +95,7 @@ const TeamForm = ({ team, onSave, onCancel, employees }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
+      <div className="relative">
         <Label htmlFor="name" className="flex items-center gap-2">
           <Target className="w-4 h-4 text-blue-600" />
           Team Name *
@@ -127,16 +127,17 @@ const TeamForm = ({ team, onSave, onCancel, employees }) => {
               {selectedLead ? `${selectedLead.name} - ${selectedLead.designation}` : 'Select team lead'}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
-            {employees.map((employee) => (
-              <SelectItem key={employee._id} value={employee._id}>
-                <div className="flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-green-500" />
-                  {employee.name} - {employee.designation} ({employee.department})
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
+          
+            <SelectContent>
+              {employees.map((employee) => (
+                <SelectItem key={employee.employeeId} value={employee.employeeId}> {/* Use employeeId */}
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-green-500" />
+                    {employee.name} - {employee.designation} ({employee.department}) - {employee.employeeId}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
         </Select>
         {selectedLead && (
           <div className="mt-2 p-2 bg-blue-50 rounded-md text-sm text-blue-700 flex items-start gap-2">
@@ -148,7 +149,7 @@ const TeamForm = ({ team, onSave, onCancel, employees }) => {
         )}
       </div>
 
-      <div>
+      <div className="relative">
         <Label htmlFor="department" className="flex items-center gap-2">
           <Building className="w-4 h-4 text-purple-600" />
           Department *
@@ -165,7 +166,7 @@ const TeamForm = ({ team, onSave, onCancel, employees }) => {
         <Building className="absolute left-3 top-9 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
       </div>
       
-      <div>
+      <div className="relative">
         <Label htmlFor="location" className="flex items-center gap-2">
           <MapPinned className="w-4 h-4 text-orange-600" />
           Location
@@ -181,7 +182,7 @@ const TeamForm = ({ team, onSave, onCancel, employees }) => {
         <MapPinned className="absolute left-3 top-9 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
       </div>
       
-      <div>
+      <div className="relative">
         <Label htmlFor="budget" className="flex items-center gap-2">
           <Wallet className="w-4 h-4 text-green-600" />
           Budget
@@ -237,17 +238,18 @@ const TeamForm = ({ team, onSave, onCancel, employees }) => {
   );
 };
 
+// Update the TeamMembersModal component to use employeeId
 const TeamMembersModal = ({ team, members, allEmployees, onAddMember, onRemoveMember, onClose }) => {
   const [selectedEmployee, setSelectedEmployee] = useState('');
 
   // Filter out employees who are already in the team
   const availableEmployees = allEmployees.filter(emp => 
-    !team.members.includes(emp._id)
+    !team.members.includes(emp.employeeId) // Use employeeId instead of _id
   );
 
   const handleAdd = async () => {
     if (selectedEmployee) {
-      await onAddMember(team._id, selectedEmployee);
+      await onAddMember(team._id, selectedEmployee); // This should now send employeeId
       setSelectedEmployee('');
     }
   };
@@ -269,10 +271,10 @@ const TeamMembersModal = ({ team, members, allEmployees, onAddMember, onRemoveMe
             </SelectTrigger>
             <SelectContent>
               {availableEmployees.map(emp => (
-                <SelectItem key={emp._id} value={emp._id}>
+                <SelectItem key={emp.employeeId} value={emp.employeeId}> {/* Use employeeId as value */}
                   <div className="flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-green-500" />
-                    {emp.name} - {emp.designation} ({emp.department})
+                    {emp.name} - {emp.designation} ({emp.department}) - {emp.employeeId}
                   </div>
                 </SelectItem>
               ))}
@@ -290,7 +292,7 @@ const TeamMembersModal = ({ team, members, allEmployees, onAddMember, onRemoveMe
             Current Members ({members.length})
           </h4>
           {members.map(member => (
-            <div key={member._id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+            <div key={member.employeeId} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50"> {/* Use employeeId as key */}
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-full">
                   <UserCheck className="w-4 h-4 text-blue-600" />
@@ -298,13 +300,13 @@ const TeamMembersModal = ({ team, members, allEmployees, onAddMember, onRemoveMe
                 <div>
                   <span className="font-medium">{member.name}</span>
                   <span className="text-sm text-gray-600 ml-2">({member.designation})</span>
-                  <div className="text-xs text-gray-500">{member.department} • {member.email}</div>
+                  <div className="text-xs text-gray-500">{member.department} • {member.email} • ID: {member.employeeId}</div>
                 </div>
               </div>
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={() => onRemoveMember(team._id, member._id)}
+                onClick={() => onRemoveMember(team._id, member.employeeId)} 
                 className="hover:bg-red-50 hover:text-red-600"
               >
                 <Trash2 className="h-4 w-4" />
@@ -326,13 +328,13 @@ const TeamMembersModal = ({ team, members, allEmployees, onAddMember, onRemoveMe
   );
 };
 
+
+
 const FilterModal = ({ filters, onFiltersChange, onClose, onClear, teams, employees }) => {
   const departments = ['all', ...new Set(teams.map(t => t.department).filter(Boolean))];
   const locations = ['all', ...new Set(teams.map(t => t.location).filter(Boolean))];
   
-  // Get unique team leads from employees
   const teamLeads = ['all', ...new Set(teams.map(t => t.lead).filter(Boolean))];
-
   return (
     <DialogContent>
       <DialogHeader>
@@ -382,7 +384,7 @@ const FilterModal = ({ filters, onFiltersChange, onClose, onClear, teams, employ
                 if (leadId === 'all') {
                   return <SelectItem key="all" value="all">All Team Leads</SelectItem>;
                 }
-                const leadEmployee = employees.find(emp => emp._id === leadId);
+                const leadEmployee = employees.find(emp => (emp._id || emp.empID) === leadId);
                 return (
                   <SelectItem key={leadId} value={leadId}>
                     {leadEmployee ? `${leadEmployee.name} - ${leadEmployee.designation}` : leadId}
@@ -451,12 +453,20 @@ const FilterModal = ({ filters, onFiltersChange, onClose, onClear, teams, employ
 
 const TeamSection = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({ 
-    department: 'all', 
-    lead: 'all', 
-    location: 'all', 
-    status: 'all' 
+  const [filters, setFilters] = useState({
+    department: 'all',
+    lead: 'all',
+    location: 'all',
+    status: 'all'
   });
+
+  // Calculate active filters count
+  const activeFiltersCount = useMemo(() => {
+    return Object.values(filters).filter(value => 
+      value !== 'all' && value !== ''
+    ).length;
+  }, [filters]);
+
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isFilterModalOpen, setFilterModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
@@ -642,45 +652,43 @@ const TeamSection = () => {
     toast({ title: 'Filters Cleared', description: 'All filters have been reset.' });
   };
 
-  // Filter teams based on search and filters
-  const filteredTeams = teams.filter(team => {
-    if (!team) return false;
-    
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = 
-      (team.name && team.name.toLowerCase().includes(searchLower)) ||
-      (team.lead && getLeadName(team.lead)?.toLowerCase().includes(searchLower)) ||
-      (team.department && team.department.toLowerCase().includes(searchLower)) ||
-      false;
-    
-    const matchesDepartment = filters.department === 'all' || team.department === filters.department;
-    const matchesLead = filters.lead === 'all' || team.lead === filters.lead;
-    const matchesLocation = filters.location === 'all' || team.location === filters.location;
-    const matchesStatus = filters.status === 'all' || team.status === filters.status;
+const getLeadName = (leadId) => {
+  const leadEmployee = employees.find(emp => emp.employeeId === leadId);
+  return leadEmployee ? leadEmployee.name : leadId;
+};
 
-    return matchesSearch && matchesDepartment && matchesLead && matchesLocation && matchesStatus;
-  });
+// Helper function to get lead details
+const getLeadDetails = (leadId) => {
+  return employees.find(emp => emp.employeeId === leadId);
+};
 
-  // Helper function to get lead name from employee ID
-  const getLeadName = (leadId) => {
-    const leadEmployee = employees.find(emp => emp._id === leadId);
-    return leadEmployee ? leadEmployee.name : leadId;
-  };
+// Get team members details for the modal
+const getTeamMembersDetails = (team) => {
+  if (!team || !team.members) return [];
+  return team.members.map(memberId => 
+    employees.find(emp => emp.employeeId === memberId)
+  ).filter(Boolean);
+};
 
-  // Helper function to get lead details
-  const getLeadDetails = (leadId) => {
-    return employees.find(emp => emp._id === leadId);
-  };
 
-  const activeFiltersCount = Object.values(filters).filter(value => value !== 'all').length;
+// Update the filter function to work with employeeIds
+const filteredTeams = teams.filter(team => {
+  if (!team) return false;
+  
+  const searchLower = searchTerm.toLowerCase();
+  const matchesSearch = 
+    (team.name && team.name.toLowerCase().includes(searchLower)) ||
+    (team.lead && getLeadName(team.lead)?.toLowerCase().includes(searchLower)) ||
+    (team.department && team.department.toLowerCase().includes(searchLower)) ||
+    false;
+  
+  const matchesDepartment = filters.department === 'all' || team.department === filters.department;
+  const matchesLead = filters.lead === 'all' || team.lead === filters.lead;
+  const matchesLocation = filters.location === 'all' || team.location === filters.location;
+  const matchesStatus = filters.status === 'all' || team.status === filters.status;
 
-  // Get team members details for the modal
-  const getTeamMembersDetails = (team) => {
-    if (!team || !team.members) return [];
-    return team.members.map(memberId => 
-      employees.find(emp => emp._id === memberId)
-    ).filter(Boolean);
-  };
+  return matchesSearch && matchesDepartment && matchesLead && matchesLocation && matchesStatus;
+});
 
   if (loading) {
     return (
